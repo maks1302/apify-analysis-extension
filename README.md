@@ -56,6 +56,13 @@ shows schema and README checks, user-growth windows, run history, categories,
 praises, and recommended improvements. Quality data is cached separately from
 monthly analytics because it belongs to the Actor rather than a reporting month.
 
+The **Acquisition** tab loads `/actor-analytics/monthly-marketing` for each Actor
+in the selected month. It summarizes Store and Console page views, viewing users,
+users with a run, weighted referrer mix, and audience geography. The expandable
+Actor list exposes each Actor's own sources and countries. Portfolio totals are
+explicitly labeled as Actor-level unique counts because the same person may be
+counted under more than one Actor.
+
 ## How the MVP works
 
 - A main-world script observes only requests to the profit-margin and actor-breakdown

@@ -14,6 +14,8 @@
   const userLoadingMonths = new Set();
   const qualityLoadingMonths = new Set();
   const qualityRequestedMonths = new Set();
+  const marketingLoadingMonths = new Set();
+  const marketingRequestedMonths = new Set();
   const manualLoadingMonths = new Set();
   let latestProfitTemplate = null;
 
@@ -248,6 +250,67 @@
     qualityLoadingMonths.delete(key);
   };
 
+  const loadActorMarketing = async (month) => {
+    const key = monthKey(month);
+    const actors = actorsByMonth.get(key);
+    const template = profitRequestByMonth.get(key) || latestProfitTemplate;
+    if (!key || marketingLoadingMonths.has(key)) return;
+    if (!actors?.length || !template) {
+      post({
+        type: "ACTOR_MARKETING_STATUS",
+        month: key,
+        status: "waiting-request",
+        completed: 0,
+        total: actors?.length || 0,
+        failed: 0,
+        message: !actors?.length
+          ? "Waiting for the Actor breakdown for this month."
+          : "Waiting for an authenticated Apify analytics request.",
+      });
+      return;
+    }
+
+    marketingLoadingMonths.add(key);
+    let completed = 0;
+    let failed = 0;
+    post({ type: "ACTOR_MARKETING_STATUS", month: key, status: "loading", completed, total: actors.length, failed });
+
+    const loadActor = async (actor) => {
+      const url = new URL("/actor-analytics/monthly-marketing", template.url);
+      url.searchParams.set("actorIds", actor.id);
+      url.searchParams.set("monthStartAt", `${key}-01T00:00:00.000Z`);
+      try {
+        const response = await loadWithTimeout(url.href, template.init);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        post({ type: "ACTOR_MARKETING_DATA", month: key, actorId: actor.id, payload });
+      } catch (error) {
+        failed += 1;
+        post({
+          type: "ACTOR_MARKETING_DATA",
+          month: key,
+          actorId: actor.id,
+          payload: null,
+          error: String(error?.message || "Marketing analytics failed"),
+        });
+      }
+      completed += 1;
+      post({ type: "ACTOR_MARKETING_STATUS", month: key, status: "loading", completed, total: actors.length, failed });
+    };
+
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < actors.length) {
+        const actor = actors[cursor];
+        cursor += 1;
+        await loadActor(actor);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, actors.length) }, worker));
+    post({ type: "ACTOR_MARKETING_STATUS", month: key, status: "complete", completed, total: actors.length, failed });
+    marketingLoadingMonths.delete(key);
+  };
+
   const storeProfitTemplate = (url, init) => {
     const key = monthKey(url.searchParams.get("month"));
     if (!key) return;
@@ -258,6 +321,7 @@
     void maybeLoadDailyRuns(key);
     void maybeLoadDailyUsers(key);
     if (qualityRequestedMonths.has(key)) void loadActorQuality(key);
+    if (marketingRequestedMonths.has(key)) void loadActorMarketing(key);
   };
 
   const rememberProfitRequest = (request, init, url) => {
@@ -327,6 +391,7 @@
       void maybeLoadDailyRuns(key);
       void maybeLoadDailyUsers(key);
       if (qualityRequestedMonths.has(key)) void loadActorQuality(key);
+      if (marketingRequestedMonths.has(key)) void loadActorMarketing(key);
     }
 
     post({ type, month: url.searchParams.get("month"), payload });
@@ -452,6 +517,11 @@
       const key = monthKey(event.data.month);
       if (key) qualityRequestedMonths.add(key);
       void loadActorQuality(key);
+    }
+    if (event.data?.type === "REQUEST_ACTOR_MARKETING") {
+      const key = monthKey(event.data.month);
+      if (key) marketingRequestedMonths.add(key);
+      void loadActorMarketing(key);
     }
   });
 })();

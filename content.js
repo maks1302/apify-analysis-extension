@@ -17,11 +17,13 @@
   let selectedActorIds = null;
   let actorPickerOpen = false;
   const expandedQualityActorIds = new Set();
+  const expandedMarketingActorIds = new Set();
   let pendingMonth = null;
   const dailyLoadStatus = {};
   const runLoadStatus = {};
   const userLoadStatus = {};
   const qualityLoadStatus = {};
+  const marketingLoadStatus = {};
   const monthLoadStatus = {};
 
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -287,6 +289,9 @@
     if (activeView === "quality") {
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: breakdown.month }, window.location.origin);
     }
+    if (activeView === "acquisition") {
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: breakdown.month }, window.location.origin);
+    }
     render();
   }
 
@@ -365,6 +370,42 @@
       ...months[key],
       month: key,
       actorUserDaily: { ...(months[key]?.actorUserDaily || {}), [actorId]: daily },
+    };
+    selectedMonth = key;
+    await chrome.storage.local.set({ [STORAGE_KEY]: months });
+    render();
+  }
+
+  function normalizeActorMarketing(payload, actorId, error) {
+    const available = Boolean(payload && typeof payload === "object");
+    const normalizeTraffic = (items, directLabel = "Direct / unknown") => Array.isArray(items)
+      ? items.map((item) => ({
+        origin: String(item?.origin || directLabel),
+        trafficPercent: Math.max(0, number(item?.trafficPercent)),
+      })).filter((item) => item.trafficPercent > 0)
+      : [];
+    return {
+      id: String(actorId || ""),
+      available,
+      monthStartAt: String(payload?.monthStartAt || ""),
+      webPageViews: number(payload?.numUniqueWebPageViews),
+      consolePageViews: number(payload?.numUniqueConsolePageViews),
+      usersWithRun: number(payload?.numUniqueUsersWithRun),
+      viewingUsers: number(payload?.numUniqueViewingUsers),
+      topReferrers: normalizeTraffic(payload?.topReferrers),
+      topCountries: normalizeTraffic(payload?.topCountryCodes, "Unknown"),
+      error: String(error || ""),
+      capturedAt: new Date().toISOString(),
+    };
+  }
+
+  async function saveActorMarketing(month, actorId, marketing) {
+    const key = String(month || "").slice(0, 7);
+    if (!key || !actorId || !marketing) return;
+    months[key] = {
+      ...months[key],
+      month: key,
+      actorMarketing: { ...(months[key]?.actorMarketing || {}), [actorId]: marketing },
     };
     selectedMonth = key;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
@@ -918,6 +959,106 @@
     </div>`;
   }
 
+  function actorMarketingMarkup(data) {
+    const actors = selectedActors(data);
+    const marketingByActor = data?.actorMarketing || {};
+    const status = marketingLoadStatus[data?.month];
+    if (!actors.length) {
+      return `<div class="ae-empty ae-empty-actors"><div class="ae-empty-icon">◎</div><h2>No Actors selected</h2><p>Choose one or more Actors to inspect acquisition performance.</p></div>`;
+    }
+
+    const tracked = actors.map((actor) => marketingByActor[actor.id]).filter(Boolean);
+    const available = tracked.filter((item) => item.available);
+    const totals = available.reduce((sum, item) => ({
+      webPageViews: sum.webPageViews + item.webPageViews,
+      consolePageViews: sum.consolePageViews + item.consolePageViews,
+      viewingUsers: sum.viewingUsers + item.viewingUsers,
+      usersWithRun: sum.usersWithRun + item.usersWithRun,
+    }), { webPageViews: 0, consolePageViews: 0, viewingUsers: 0, usersWithRun: 0 });
+    const runViewSignal = totals.viewingUsers ? totals.usersWithRun / totals.viewingUsers : 0;
+    const progress = status?.status === "loading" && status.total
+      ? Math.min(100, status.completed / status.total * 100)
+      : actors.length ? Math.min(100, tracked.length / actors.length * 100) : 0;
+
+    const weightedTraffic = (field) => {
+      const weights = new Map();
+      for (const actor of available) {
+        const weight = Math.max(1, actor.webPageViews + actor.consolePageViews);
+        for (const item of actor[field]) weights.set(item.origin, number(weights.get(item.origin)) + weight * item.trafficPercent);
+      }
+      const totalWeight = [...weights.values()].reduce((sum, value) => sum + value, 0);
+      return [...weights.entries()]
+        .map(([origin, value]) => ({ origin, percent: totalWeight ? value / totalWeight * 100 : 0 }))
+        .sort((a, b) => b.percent - a.percent)
+        .slice(0, 8);
+    };
+    const referrers = weightedTraffic("topReferrers");
+    const countries = weightedTraffic("topCountries");
+    const trafficBars = (items, kind) => items.map((item, index) => `<div class="ae-acquisition-bar-row">
+      <div><span class="ae-acquisition-rank">${index + 1}</span><strong>${escapeHtml(item.origin)}</strong></div>
+      <div class="ae-acquisition-track"><i style="width:${Math.max(1, item.percent).toFixed(1)}%"></i></div>
+      <span>${item.percent.toFixed(1)}%</span>
+    </div>`).join("") || `<div class="ae-acquisition-empty">No ${escapeHtml(kind)} data reported.</div>`;
+
+    const sorted = [...actors].sort((a, b) => {
+      const left = marketingByActor[a.id];
+      const right = marketingByActor[b.id];
+      if (left?.available && !right?.available) return -1;
+      if (!left?.available && right?.available) return 1;
+      return number(right?.usersWithRun) - number(left?.usersWithRun) || number(right?.webPageViews) - number(left?.webPageViews) || a.title.localeCompare(b.title);
+    });
+    const detailTraffic = (items, emptyLabel) => items.map((item) => `<div class="ae-acquisition-detail-row"><strong>${escapeHtml(item.origin)}</strong><div><i style="width:${Math.min(100, item.trafficPercent).toFixed(1)}%"></i></div><span>${item.trafficPercent.toFixed(0)}%</span></div>`).join("") || `<div class="ae-acquisition-empty">${escapeHtml(emptyLabel)}</div>`;
+    const rows = sorted.map((actor) => {
+      const item = marketingByActor[actor.id];
+      const expanded = expandedMarketingActorIds.has(actor.id);
+      const signal = item?.viewingUsers ? item.usersWithRun / item.viewingUsers : 0;
+      const details = item?.available && expanded ? `<div class="ae-acquisition-details">
+        <div class="ae-acquisition-detail-panel"><div class="ae-acquisition-detail-title"><strong>Traffic sources</strong><span>Reported share for this Actor</span></div>${detailTraffic(item.topReferrers, "No referrer data reported.")}</div>
+        <div class="ae-acquisition-detail-panel"><div class="ae-acquisition-detail-title"><strong>Audience countries</strong><span>Reported share for this Actor</span></div>${detailTraffic(item.topCountries, "No country data reported.")}</div>
+      </div>` : "";
+      return `<article class="ae-acquisition-row ${expanded ? "ae-expanded" : ""}">
+        <button type="button" class="ae-acquisition-row-main" data-ae-marketing-toggle="${escapeHtml(actor.id)}" aria-expanded="${expanded}" ${item?.available ? "" : "disabled"}>
+          <div class="ae-quality-identity">
+            <div class="ae-actor-avatar">${actor.pictureUrl ? `<img src="${escapeHtml(actor.pictureUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer"/>` : `<span>${escapeHtml(actor.title.slice(0, 2).toUpperCase())}</span>`}</div>
+            <div><strong>${escapeHtml(actor.title)}</strong><span>${escapeHtml(actor.name)}</span></div>
+          </div>
+          <div class="ae-acquisition-metric"><strong>${item?.available ? integer(item.webPageViews) : "—"}</strong><span>Store views</span></div>
+          <div class="ae-acquisition-metric"><strong>${item?.available ? integer(item.consolePageViews) : "—"}</strong><span>Console views</span></div>
+          <div class="ae-acquisition-metric"><strong>${item?.available ? integer(item.viewingUsers) : "—"}</strong><span>Viewing users</span></div>
+          <div class="ae-acquisition-metric ae-acquisition-runs"><strong>${item?.available ? integer(item.usersWithRun) : "—"}</strong><span>Users with run</span></div>
+          <div class="ae-acquisition-metric"><strong>${item?.available && item.viewingUsers ? percent(signal) : "—"}</strong><span>${item?.error ? "Unavailable" : item ? "Run/view signal" : status?.status === "loading" ? "Loading…" : "Not loaded"}</span></div>
+          <span class="ae-quality-chevron">⌄</span>
+        </button>
+        ${details}
+      </article>`;
+    }).join("");
+
+    return `<div class="ae-acquisition-dashboard">
+      <div class="ae-quality-summary ae-acquisition-summary">
+        <article><span>Store page views</span><strong>${integer(totals.webPageViews)}</strong><small>Actor-level unique totals</small></article>
+        <article><span>Console page views</span><strong>${integer(totals.consolePageViews)}</strong><small>Actor-level unique totals</small></article>
+        <article><span>Viewing users</span><strong>${integer(totals.viewingUsers)}</strong><small>Across ${available.length} Actors</small></article>
+        <article><span>Users with run</span><strong>${integer(totals.usersWithRun)}</strong><small>${totals.viewingUsers ? `${percent(runViewSignal)} run/view signal` : "No viewing-user baseline"}</small></article>
+      </div>
+      <div class="ae-acquisition-insights">
+        <section><div class="ae-card-heading"><div><span>Acquisition sources</span><small>Portfolio mix weighted by Actor page views</small></div></div>${trafficBars(referrers, "referrer")}</section>
+        <section><div class="ae-card-heading"><div><span>Audience geography</span><small>Portfolio mix weighted by Actor page views</small></div></div>${trafficBars(countries, "country")}</section>
+      </div>
+      <section class="ae-acquisition-list-card">
+        <div class="ae-card-heading ae-quality-heading">
+          <div><span>Actor acquisition</span><small>Actor-level unique counts · the same person may appear under multiple Actors</small></div>
+          <button type="button" data-ae-marketing-refresh>${status?.status === "loading" ? `Loading ${status.completed}/${status.total}` : tracked.length ? "Refresh acquisition" : "Load acquisition"}</button>
+        </div>
+        <div class="ae-acquisition-list-head"><span>Actor</span><span>Store</span><span>Console</span><span>Viewing</span><span>Ran</span><span>Signal</span><span></span></div>
+        <div class="ae-acquisition-list">${rows}</div>
+        ${status?.status === "waiting-request" ? `<div class="ae-quality-notice">${escapeHtml(status.message || "Waiting for authenticated Apify data.")}</div>` : ""}
+        ${status?.status === "complete" && status.failed ? `<div class="ae-quality-notice">${integer(status.failed)} Actor request${status.failed === 1 ? "" : "s"} could not be loaded. Use refresh to retry.</div>` : ""}
+        ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Processed ${status.completed} of ${status.total} Actors</span></div>` : ""}
+      </section>
+      <p class="ae-acquisition-footnote">Run/view signal compares two separately deduplicated cohorts and can exceed 100%; it is directional, not a strict conversion rate.</p>
+    </div>`;
+  }
+
   function actorBreakdownMarkup(data) {
     const breakdown = data?.actorBreakdown;
     if (!breakdown?.actors?.length) {
@@ -1120,6 +1261,7 @@
         <button type="button" data-ae-view="users" class="${activeView === "users" ? "ae-active" : ""}">Daily users <span>${Object.keys(data.actorUserDaily || {}).length || ""}</span></button>
         <button type="button" data-ae-view="actors" class="${activeView === "actors" ? "ae-active" : ""}">Actors <span>${pickedCount || ""}</span></button>
         <button type="button" data-ae-view="quality" class="${activeView === "quality" ? "ae-active" : ""}">Quality <span>${actorsForPicker.filter((actor) => actorQuality[actor.id]).length || ""}</span></button>
+        <button type="button" data-ae-view="acquisition" class="${activeView === "acquisition" ? "ae-active" : ""}">Acquisition <span>${Object.keys(data.actorMarketing || {}).length || ""}</span></button>
       </nav>`;
 
     if (!hasOverview) {
@@ -1135,6 +1277,7 @@
         <div class="ae-view ${activeView === "users" ? "ae-visible" : ""}" data-ae-section="users">${dailyUsersMarkup(data)}</div>
         <div class="ae-view ${activeView === "actors" ? "ae-visible" : ""}" data-ae-section="actors">${actorBreakdownMarkup(data)}</div>
         <div class="ae-view ${activeView === "quality" ? "ae-visible" : ""}" data-ae-section="quality">${actorQualityMarkup(data)}</div>
+        <div class="ae-view ${activeView === "acquisition" ? "ae-visible" : ""}" data-ae-section="acquisition">${actorMarketingMarkup(data)}</div>
       </div>`;
     }
 
@@ -1197,6 +1340,9 @@
       </div>
       <div class="ae-view ${activeView === "quality" ? "ae-visible" : ""}" data-ae-section="quality">
         ${actorQualityMarkup(data)}
+      </div>
+      <div class="ae-view ${activeView === "acquisition" ? "ae-visible" : ""}" data-ae-section="acquisition">
+        ${actorMarketingMarkup(data)}
       </div>
     </div>`;
   }
@@ -1359,6 +1505,10 @@
           const needsQuality = (data?.actorBreakdown?.actors || []).some((actor) => !actorQuality[actor.id]);
           if (needsQuality) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
         }
+        if (activeView === "acquisition") {
+          const needsMarketing = (data?.actorBreakdown?.actors || []).some((actor) => !data?.actorMarketing?.[actor.id]);
+          if (needsMarketing) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
+        }
         render();
       });
     });
@@ -1370,6 +1520,17 @@
         const actorId = button.dataset.aeQualityToggle;
         if (expandedQualityActorIds.has(actorId)) expandedQualityActorIds.delete(actorId);
         else expandedQualityActorIds.add(actorId);
+        render();
+      });
+    });
+    content.querySelector("[data-ae-marketing-refresh]")?.addEventListener("click", () => {
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
+    });
+    content.querySelectorAll("[data-ae-marketing-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const actorId = button.dataset.aeMarketingToggle;
+        if (expandedMarketingActorIds.has(actorId)) expandedMarketingActorIds.delete(actorId);
+        else expandedMarketingActorIds.add(actorId);
         render();
       });
     });
@@ -1471,6 +1632,21 @@
           status: event.data.status,
           completed: number(event.data.completed),
           total: number(event.data.total),
+          message: String(event.data.message || ""),
+        };
+        render();
+      }
+    } else if (event.data?.type === "ACTOR_MARKETING_DATA") {
+      const marketing = normalizeActorMarketing(event.data.payload, event.data.actorId, event.data.error);
+      if (marketing) void saveActorMarketing(event.data.month, event.data.actorId, marketing);
+    } else if (event.data?.type === "ACTOR_MARKETING_STATUS") {
+      const key = String(event.data.month || "").slice(0, 7);
+      if (key) {
+        marketingLoadStatus[key] = {
+          status: event.data.status,
+          completed: number(event.data.completed),
+          total: number(event.data.total),
+          failed: number(event.data.failed),
           message: String(event.data.message || ""),
         };
         render();
