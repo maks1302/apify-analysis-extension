@@ -40,6 +40,24 @@
   const actorSelected = (actorId) => selectedActorIds === null || selectedActorIds.has(actorId);
   const selectedActors = (data) => (data?.actorBreakdown?.actors || []).filter((actor) => actorSelected(actor.id));
 
+  function localDateKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function dateIsVisibleForMonth(date, month) {
+    const selected = String(month || "").slice(0, 7);
+    if (!selected) return true;
+    if (!date.startsWith(`${selected}-`)) return false;
+    const today = localDateKey();
+    const currentMonth = today.slice(0, 7);
+    if (selected < currentMonth) return true;
+    if (selected > currentMonth) return false;
+    return date <= today;
+  }
+
   function unwrapStats(value) {
     if (!value || typeof value !== "object") return {};
     return value.payingUsersUsd && typeof value.payingUsersUsd === "object"
@@ -582,12 +600,15 @@
   function stackedUserChart(data) {
     const actorUserDaily = data?.actorUserDaily || {};
     const actorInfo = new Map((data?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
-    const allSeries = Object.entries(actorUserDaily).filter(([id]) => actorSelected(id)).map(([id, daily]) => ({
-      id,
-      name: actorInfo.get(id)?.title || actorInfo.get(id)?.name || id,
-      daily,
-      total: daily.reduce((sum, day) => sum + number(day[userMetric]), 0),
-    }));
+    const allSeries = Object.entries(actorUserDaily).filter(([id]) => actorSelected(id)).map(([id, daily]) => {
+      const visibleDaily = daily.filter((day) => dateIsVisibleForMonth(day.date, data?.month));
+      return {
+        id,
+        name: actorInfo.get(id)?.title || actorInfo.get(id)?.name || id,
+        daily: visibleDaily,
+        total: visibleDaily.reduce((sum, day) => sum + number(day[userMetric]), 0),
+      };
+    });
     const series = allSeries.filter((item) => item.total > 0).sort((a, b) => b.total - a.total);
     if (!series.length) return null;
 
@@ -654,7 +675,9 @@
     const captured = Object.keys(data?.actorUserDaily || {}).length;
     const totalActors = status?.total || data?.actorBreakdown?.actors?.length || 0;
     const progress = totalActors ? Math.min(100, (captured / totalActors) * 100) : 0;
-    const selectedUserSeries = Object.entries(data?.actorUserDaily || {}).filter(([id]) => actorSelected(id));
+    const selectedUserSeries = Object.entries(data?.actorUserDaily || {})
+      .filter(([id]) => actorSelected(id))
+      .map(([id, daily]) => [id, daily.filter((day) => dateIsVisibleForMonth(day.date, data?.month))]);
     const payingTotal = selectedUserSeries.reduce((sum, [, daily]) => sum + daily.reduce((inner, day) => inner + day.payingUsers, 0), 0);
     const freeTotal = selectedUserSeries.reduce((sum, [, daily]) => sum + daily.reduce((inner, day) => inner + day.freeUsers, 0), 0);
     const payingShare = payingTotal + freeTotal ? payingTotal / (payingTotal + freeTotal) : 0;
@@ -663,11 +686,14 @@
     const peakDate = peakIndex >= 0 ? chart.dates[peakIndex] : null;
     const peakValue = peakIndex >= 0 ? chart.totalsByDate[peakIndex] : 0;
     const unsupported = status?.status === "unsupported";
+    const coverage = chart?.dates?.at(-1)
+      ? ` · through ${new Date(`${chart.dates.at(-1)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+      : "";
 
     return `<div class="ae-daily-users">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading ae-run-heading">
-          <div><span>Daily users by Actor</span><small>Actor-user occurrences · the same person may appear under multiple Actors</small></div>
+          <div><span>Daily users by Actor</span><small>Actor-user occurrences${escapeHtml(coverage)} · the same person may appear under multiple Actors</small></div>
           <div class="ae-user-metric-toggle">
             ${Object.entries(userMetricLabels).map(([key, label]) => `<button type="button" data-ae-user-metric="${key}" class="${userMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
@@ -969,12 +995,12 @@
     root = document.createElement("div");
     root.id = UI_ID;
     root.innerHTML = `<button id="ae-launcher" type="button" aria-label="Open Apify earnings dashboard">
-        <span class="ae-launcher-icon">↗</span><span id="ae-launcher-label">Earnings</span>
+        <span class="ae-launcher-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 11.5 6 8l2.2 2.2L13.5 5"/><path d="M9.5 5h4v4"/></svg></span><span id="ae-launcher-label">Earnings</span>
       </button>
       <div id="ae-backdrop"></div>
       <aside id="ae-panel" aria-label="Apify earnings dashboard" aria-hidden="true">
         <header class="ae-panel-header">
-          <div class="ae-brand"><div class="ae-logo">A</div><div><strong>Apify Earnings</strong><span>Local dashboard</span></div></div>
+          <div class="ae-brand"><div class="ae-logo" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3 13.5V9.75M7 13.5V5.75M11 13.5V8M15 13.5V3.5"/></svg></div><div><strong>Actor Analytics</strong><span>Private workspace</span></div></div>
           <button id="ae-close" type="button" aria-label="Close dashboard">×</button>
         </header>
         <main id="ae-panel-content"></main>
