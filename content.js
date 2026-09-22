@@ -463,49 +463,6 @@
     }).join(" ");
   }
 
-  function chartSvg(daily) {
-    const width = 720;
-    const height = 190;
-    const revenue = daily.map((day) => day.revenueUsd);
-    const profit = daily.map((day) => day.profitUsd);
-    const all = [...revenue, ...profit, 0];
-    const minValue = Math.min(...all);
-    const maxValue = Math.max(...all);
-    const zeroY = height - ((0 - minValue) / (maxValue - minValue || 1)) * height;
-    const revenuePath = linePath(revenue, width, height, minValue, maxValue);
-    const profitPath = linePath(profit, width, height, minValue, maxValue);
-    const areaPath = `${revenuePath} L${width},${height} L0,${height} Z`;
-
-    const guides = [0, 0.5, 1].map((ratio) => {
-      const y = (height * ratio).toFixed(1);
-      return `<line x1="0" y1="${y}" x2="${width}" y2="${y}" class="ae-guide" />`;
-    }).join("");
-
-    const points = daily.map((day, index) => {
-      const x = daily.length === 1 ? width / 2 : (index / (daily.length - 1)) * width;
-      const range = maxValue - minValue || 1;
-      const revenueY = height - ((day.revenueUsd - minValue) / range) * height;
-      return `<circle cx="${x.toFixed(1)}" cy="${revenueY.toFixed(1)}" r="7" class="ae-hit">
-        <title>${escapeHtml(day.date)} — Revenue ${escapeHtml(money(day.revenueUsd))}, Profit ${escapeHtml(money(day.profitUsd))}</title>
-      </circle>`;
-    }).join("");
-
-    return `<svg class="ae-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily revenue and profit chart">
-      <defs>
-        <linearGradient id="ae-revenue-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#7c5cff" stop-opacity="0.28" />
-          <stop offset="100%" stop-color="#7c5cff" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      ${guides}
-      <line x1="0" y1="${zeroY.toFixed(1)}" x2="${width}" y2="${zeroY.toFixed(1)}" class="ae-zero" />
-      <path d="${areaPath}" fill="url(#ae-revenue-fill)" />
-      <path d="${revenuePath}" class="ae-line ae-line-revenue" />
-      <path d="${profitPath}" class="ae-line ae-line-profit" />
-      ${points}
-    </svg>`;
-  }
-
   const actorColors = [
     "#7c5cff", "#37d996", "#ff9f43", "#35b8ff", "#ff647c", "#e2c65a",
     "#b277ff", "#42d6c9", "#ff7eb6", "#7196ff", "#8ed45f", "#d889ff",
@@ -1205,6 +1162,164 @@
     </div>`;
   }
 
+  function overviewSparkline(daily) {
+    const width = 520;
+    const height = 112;
+    const revenue = daily.map((day) => day.revenueUsd);
+    const profit = daily.map((day) => day.profitUsd);
+    const maxValue = Math.max(...revenue, ...profit, 1);
+    const minValue = Math.min(...profit, 0);
+    const revenuePath = linePath(revenue, width, height, minValue, maxValue);
+    const profitPath = linePath(profit, width, height, minValue, maxValue);
+    const latestRevenue = revenue.at(-1) || 0;
+    const latestProfit = profit.at(-1) || 0;
+    return `<svg class="ae-overview-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="Compact daily revenue and profit trend">
+      <line x1="0" y1="${height}" x2="${width}" y2="${height}" class="ae-overview-spark-base" />
+      <path d="${revenuePath}" class="ae-overview-spark-revenue"><title>Latest revenue ${escapeHtml(money(latestRevenue))}</title></path>
+      <path d="${profitPath}" class="ae-overview-spark-profit"><title>Latest profit ${escapeHtml(money(latestProfit))}</title></path>
+    </svg>`;
+  }
+
+  function commandOverviewMarkup(data, overviewData, previous) {
+    const actors = selectedActors(data);
+    const previousActors = new Map((previous?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
+    const [year, monthNumber] = data.month.split("-").map(Number);
+    const daysInMonth = new Date(year, monthNumber, 0).getDate();
+    const currentMonth = localDateKey().slice(0, 7);
+    const isCurrentMonth = data.month === currentMonth;
+    const lastDataDay = Math.max(...overviewData.daily.map((day) => number(day.date.slice(8))), 1);
+    const reportedDay = isCurrentMonth ? Math.min(lastDataDay, number(localDateKey().slice(8))) : lastDataDay;
+    const paceFactor = isCurrentMonth ? daysInMonth / Math.min(reportedDay, daysInMonth) : 1;
+    const pacedRevenue = overviewData.total.revenueUsd * paceFactor;
+    const pacedProfit = overviewData.total.profitUsd * paceFactor;
+    const revenueChange = previous?.total ? change(previous.total.revenueUsd, pacedRevenue) : null;
+    const profitChange = previous?.total ? change(previous.total.profitUsd, pacedProfit) : null;
+    const trend = (value, fallback = "No previous period") => value === null
+      ? `<span class="ae-muted">${fallback}</span>`
+      : `<span class="${value >= 0 ? "ae-up" : "ae-down"}">${value >= 0 ? "↑" : "↓"} ${Math.abs(value * 100).toFixed(1)}% ${isCurrentMonth ? "projected vs previous" : "vs previous"}</span>`;
+    const bestDay = overviewData.daily.reduce((best, day) => day.profitUsd > best.profitUsd ? day : best, overviewData.daily[0]);
+    const avgRevenue = overviewData.total.revenueUsd / Math.max(overviewData.daily.length, 1);
+
+    const actorRevenueTotal = actors.reduce((sum, actor) => sum + actor.revenueUsd, 0);
+    const contributors = [...actors].sort((a, b) => b.revenueUsd - a.revenueUsd);
+    const concentration = (count) => actorRevenueTotal
+      ? contributors.slice(0, count).reduce((sum, actor) => sum + actor.revenueUsd, 0) / actorRevenueTotal
+      : 0;
+    const contributorRows = contributors.slice(0, 5).map((actor, index) => {
+      const share = actorRevenueTotal ? actor.revenueUsd / actorRevenueTotal : 0;
+      return `<div class="ae-overview-contributor">
+        <span class="ae-overview-rank">${index + 1}</span>
+        <div class="ae-overview-actor"><strong>${escapeHtml(actor.title)}</strong><span>${percent(share)} of revenue</span></div>
+        <div class="ae-overview-share"><i style="width:${Math.max(1, share * 100).toFixed(1)}%"></i></div>
+        <div class="ae-overview-money"><strong>${compactMoney(actor.revenueUsd)}</strong><span>${compactMoney(actor.profitUsd)} profit</span></div>
+      </div>`;
+    }).join("") || '<div class="ae-overview-empty">No Actor revenue data.</div>';
+
+    const movers = actors.map((actor) => {
+      const previousActor = previousActors.get(actor.id);
+      const comparableRevenue = actor.revenueUsd * paceFactor;
+      const deltaUsd = comparableRevenue - number(previousActor?.revenueUsd);
+      const delta = previousActor?.revenueUsd ? deltaUsd / Math.abs(previousActor.revenueUsd) : null;
+      return { actor, deltaUsd, delta, isNew: !previousActor && actor.revenueUsd > 0 };
+    }).filter((item) => item.actor.revenueUsd > 0 || item.deltaUsd !== 0)
+      .sort((a, b) => Math.abs(b.deltaUsd) - Math.abs(a.deltaUsd)).slice(0, 5);
+    const moverRows = movers.map((item) => `<div class="ae-overview-mover">
+      <div class="ae-overview-actor"><strong>${escapeHtml(item.actor.title)}</strong><span>${isCurrentMonth ? "Projected month" : "Selected month"}</span></div>
+      <strong class="${item.deltaUsd >= 0 ? "ae-up" : "ae-down"}">${item.isNew ? "New" : item.delta === null ? "—" : `${item.delta >= 0 ? "+" : ""}${(item.delta * 100).toFixed(1)}%`}</strong>
+      <span class="${item.deltaUsd >= 0 ? "ae-up" : "ae-down"}">${item.deltaUsd >= 0 ? "+" : "−"}${compactMoney(Math.abs(item.deltaUsd))}</span>
+    </div>`).join("") || '<div class="ae-overview-empty">Load a previous month to compare momentum.</div>';
+
+    const alertsByActor = new Map();
+    const addAlert = (actor, priority, type, message, tone) => {
+      if (!actor || priority <= number(alertsByActor.get(actor.id)?.priority)) return;
+      alertsByActor.set(actor.id, { actor, priority, type, message, tone });
+    };
+    for (const actor of actors) {
+      const failed = actor.failedRuns + actor.timedOutRuns;
+      const failureRate = actor.totalRuns ? failed / actor.totalRuns : 0;
+      if (failed > 0) addAlert(actor, 80 + failureRate * 100, "Reliability", `${integer(failed)} failed or timed-out runs · ${percent(failureRate)}`, "critical");
+      if (actor.profitUsd < 0) addAlert(actor, 95, "Economics", `${money(actor.profitUsd)} net loss this month`, "critical");
+      else if (actor.revenueUsd > 0 && actor.margin < .5) addAlert(actor, 70, "Economics", `${percent(actor.margin)} profit margin`, "warning");
+      const quality = actorQuality[actor.id];
+      if (quality?.hasQualityScore && quality.quality < .7) addAlert(actor, 75, "Quality", `${(quality.quality * 100).toFixed(1)} quality score`, "warning");
+      const missingChecks = quality ? [quality.hasInputSchema, quality.hasOutputSchema, quality.hasReadme].filter((value) => !value).length : 0;
+      if (missingChecks) addAlert(actor, 55 + missingChecks, "Store readiness", `${missingChecks} quality requirement${missingChecks === 1 ? "" : "s"} missing`, "warning");
+      if (quality?.improvements?.length) addAlert(actor, 45 + quality.improvements.length, "Quality", `${quality.improvements.length} recommended improvement${quality.improvements.length === 1 ? "" : "s"}`, "neutral");
+      const marketing = data.actorMarketing?.[actor.id];
+      const pageViews = number(marketing?.webPageViews) + number(marketing?.consolePageViews);
+      if (marketing?.available && pageViews >= 10 && marketing.usersWithRun === 0) addAlert(actor, 72, "Acquisition", `${integer(pageViews)} page views but no users with a run`, "warning");
+    }
+    const alerts = [...alertsByActor.values()].sort((a, b) => b.priority - a.priority).slice(0, 6);
+    const alertRows = alerts.map((alert) => `<div class="ae-overview-alert">
+      <span class="ae-overview-alert-dot ae-${alert.tone}"></span>
+      <div><strong>${escapeHtml(alert.actor.title)}</strong><span>${escapeHtml(alert.message)}</span></div>
+      <small>${escapeHtml(alert.type)}</small>
+    </div>`).join("") || '<div class="ae-overview-clear"><span>✓</span><div><strong>No significant issues detected</strong><p>Loaded portfolio signals look healthy.</p></div></div>';
+
+    const totalRuns = actors.reduce((sum, actor) => sum + actor.totalRuns, 0);
+    const successfulRuns = actors.reduce((sum, actor) => sum + actor.successfulRuns, 0);
+    const portfolioSuccess = totalRuns ? successfulRuns / totalRuns : 0;
+    const problemActors = actors.filter((actor) => actor.failedRuns + actor.abortedRuns + actor.timedOutRuns > 0).length;
+    const marketing = actors.map((actor) => data.actorMarketing?.[actor.id]).filter((item) => item?.available);
+    const marketingTotals = marketing.reduce((sum, item) => ({
+      views: sum.views + item.webPageViews + item.consolePageViews,
+      runners: sum.runners + item.usersWithRun,
+    }), { views: 0, runners: 0 });
+    const sources = new Map();
+    for (const item of marketing) {
+      const weight = Math.max(1, item.webPageViews + item.consolePageViews);
+      for (const source of item.topReferrers) sources.set(source.origin, number(sources.get(source.origin)) + weight * source.trafficPercent);
+    }
+    const topSource = [...sources.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "Not loaded";
+    const qualities = actors.map((actor) => actorQuality[actor.id]).filter((item) => item?.hasQualityScore);
+    const averageQuality = qualities.length ? qualities.reduce((sum, item) => sum + item.quality, 0) / qualities.length : 0;
+    const qualityActions = qualities.reduce((sum, item) => sum + (item.improvements?.length || 0), 0);
+    const readinessGaps = qualities.reduce((sum, item) => sum + [item.hasInputSchema, item.hasOutputSchema, item.hasReadme].filter((value) => !value).length, 0);
+
+    return `<div class="ae-command-overview">
+      <div class="ae-kpis ae-command-kpis">
+        <article class="ae-kpi ae-kpi-primary"><span>Revenue</span><strong>${money(overviewData.total.revenueUsd)}</strong>${trend(revenueChange)}</article>
+        <article class="ae-kpi"><span>Net profit</span><strong>${money(overviewData.total.profitUsd)}</strong>${trend(profitChange)}</article>
+        <article class="ae-kpi"><span>Margin</span><strong>${percent(overviewData.total.margin)}</strong><small>${money(overviewData.total.costUsd)} in costs</small></article>
+        <article class="ae-kpi"><span>${isCurrentMonth ? "Projected revenue" : "Final revenue"}</span><strong>${money(pacedRevenue)}</strong><small>${isCurrentMonth ? `${reportedDay} of ${daysInMonth} days reported` : `${overviewData.daily.length} reported days`}</small></article>
+      </div>
+
+      <div class="ae-overview-primary-grid">
+        <section class="ae-overview-card ae-overview-trend-card">
+          <div class="ae-card-heading"><div><span>Performance pulse</span><small>Daily revenue and profit · compact view</small></div><div class="ae-legend"><i class="ae-purple"></i>Revenue <i class="ae-green"></i>Profit</div></div>
+          ${overviewSparkline(overviewData.daily)}
+          <div class="ae-overview-trend-stats">
+            <div><span>Best profit day</span><strong>${money(bestDay.profitUsd)}</strong><small>${escapeHtml(bestDay.date)}</small></div>
+            <div><span>Average daily revenue</span><strong>${money(avgRevenue)}</strong><small>Reported days</small></div>
+            <div><span>Projected profit</span><strong>${money(pacedProfit)}</strong><small>${isCurrentMonth ? "Current pace" : "Actual"}</small></div>
+          </div>
+        </section>
+        <section class="ae-overview-card ae-overview-attention-card">
+          <div class="ae-card-heading"><div><span>Needs attention</span><small>${alerts.length ? `${alerts.length} prioritized portfolio signals` : "No urgent portfolio signals"}</small></div><button type="button" data-ae-go-to="runs">Run health →</button></div>
+          <div class="ae-overview-alerts">${alertRows}</div>
+        </section>
+      </div>
+
+      <div class="ae-overview-secondary-grid">
+        <section class="ae-overview-card">
+          <div class="ae-card-heading"><div><span>Top contributors</span><small>Top 1: ${percent(concentration(1))} · Top 3: ${percent(concentration(3))}</small></div><button type="button" data-ae-go-to="actors">All Actors →</button></div>
+          <div class="ae-overview-contributors">${contributorRows}</div>
+        </section>
+        <section class="ae-overview-card">
+          <div class="ae-card-heading"><div><span>Actor momentum</span><small>${previous ? `${isCurrentMonth ? "Projected" : "Actual"} revenue vs ${escapeHtml(previous.month || "previous period")}` : "Requires a previous loaded month"}</small></div></div>
+          <div class="ae-overview-movers">${moverRows}</div>
+        </section>
+      </div>
+
+      <div class="ae-overview-snapshot-grid">
+        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-health-icon">✓</span><button type="button" data-ae-go-to="runs">Portfolio health →</button></div><strong>${percent(portfolioSuccess)}</strong><span>run success rate</span><div><b>${integer(problemActors)}</b> Actors with run issues · <b>${integer(totalRuns)}</b> total runs</div></section>
+        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-acquisition-icon">◎</span><button type="button" data-ae-go-to="acquisition">Acquisition →</button></div><strong>${integer(marketingTotals.runners)}</strong><span>Actor-users with a run</span><div><b>${integer(marketingTotals.views)}</b> page views · Top source: <b>${escapeHtml(topSource)}</b></div></section>
+        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-quality-icon">◇</span><button type="button" data-ae-go-to="quality">Quality →</button></div><strong>${qualities.length ? (averageQuality * 100).toFixed(1) : "—"}</strong><span>average quality score</span><div><b>${integer(readinessGaps)}</b> readiness gaps · <b>${integer(qualityActions)}</b> actions</div></section>
+      </div>
+      <footer>Captured locally ${new Date(overviewData.capturedAt).toLocaleString()}</footer>
+    </div>`;
+  }
+
   function dashboardMarkup(data) {
     if (!data) {
       return `<div class="ae-empty">
@@ -1283,48 +1398,10 @@
 
     const previousKey = Object.keys(months).sort().filter((key) => key < data.month).at(-1);
     const previous = previousKey ? overviewForSelection(months[previousKey]) : null;
-    const revenueChange = previous?.total ? change(previous.total.revenueUsd, overviewData.total.revenueUsd) : null;
-    const profitChange = previous?.total ? change(previous.total.profitUsd, overviewData.total.profitUsd) : null;
-    const bestDay = overviewData.daily.reduce((best, day) => day.profitUsd > best.profitUsd ? day : best, overviewData.daily[0]);
-    const latestDay = overviewData.daily.at(-1);
-    const avgRevenue = overviewData.total.revenueUsd / overviewData.daily.length;
-    const trend = (value) => value === null
-      ? `<span class="ae-muted">No previous month</span>`
-      : `<span class="${value >= 0 ? "ae-up" : "ae-down"}">${value >= 0 ? "↑" : "↓"} ${Math.abs(value * 100).toFixed(1)}% vs previous</span>`;
 
     return `${shellStart}
       <div class="ae-view ${activeView === "overview" ? "ae-visible" : ""}" data-ae-section="overview">
-      <div class="ae-kpis">
-        <article class="ae-kpi ae-kpi-primary">
-          <span>Revenue</span><strong>${money(overviewData.total.revenueUsd)}</strong>${trend(revenueChange)}
-        </article>
-        <article class="ae-kpi">
-          <span>Net profit</span><strong>${money(overviewData.total.profitUsd)}</strong>${trend(profitChange)}
-        </article>
-        <article class="ae-kpi">
-          <span>Costs</span><strong>${money(overviewData.total.costUsd)}</strong><small>Revenue minus profit</small>
-        </article>
-        <article class="ae-kpi">
-          <span>Margin</span><strong>${percent(overviewData.total.margin)}</strong><small>${overviewData.daily.length} reported days</small>
-        </article>
-      </div>
-
-      <section class="ae-chart-card">
-        <div class="ae-card-heading">
-          <div><span>Daily performance</span><small>Hover over the chart for exact values</small></div>
-          <div class="ae-legend"><i class="ae-purple"></i>Revenue <i class="ae-green"></i>Profit</div>
-        </div>
-        ${chartSvg(overviewData.daily)}
-        <div class="ae-axis-labels"><span>${escapeHtml(overviewData.daily[0].date)}</span><span>${escapeHtml(latestDay.date)}</span></div>
-      </section>
-
-      <div class="ae-insights">
-        <article><span>Best profit day</span><strong>${money(bestDay.profitUsd)}</strong><small>${escapeHtml(bestDay.date)}</small></article>
-        <article><span>Average daily revenue</span><strong>${money(avgRevenue)}</strong><small>Across reported days</small></article>
-        <article><span>Latest day</span><strong>${money(latestDay.revenueUsd)}</strong><small>${escapeHtml(latestDay.date)} revenue</small></article>
-      </div>
-
-      <footer>Captured locally ${new Date(overviewData.capturedAt).toLocaleString()}</footer>
+        ${commandOverviewMarkup(data, overviewData, previous)}
       </div>
       <div class="ae-view ${activeView === "daily" ? "ae-visible" : ""}" data-ae-section="daily">
         ${dailyMixMarkup(data)}
@@ -1498,19 +1575,23 @@
         label.hidden = Boolean(query) && !label.dataset.aeActorLabel.includes(query);
       });
     });
-    content.querySelectorAll("[data-ae-view]").forEach((button) => {
-      button.addEventListener("click", () => {
-        activeView = button.dataset.aeView;
-        if (activeView === "quality") {
+    const activateView = (view) => {
+      activeView = view;
+      if (activeView === "quality") {
           const needsQuality = (data?.actorBreakdown?.actors || []).some((actor) => !actorQuality[actor.id]);
           if (needsQuality) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
-        }
-        if (activeView === "acquisition") {
+      }
+      if (activeView === "acquisition") {
           const needsMarketing = (data?.actorBreakdown?.actors || []).some((actor) => !data?.actorMarketing?.[actor.id]);
           if (needsMarketing) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
-        }
-        render();
-      });
+      }
+      render();
+    };
+    content.querySelectorAll("[data-ae-view]").forEach((button) => {
+      button.addEventListener("click", () => activateView(button.dataset.aeView));
+    });
+    content.querySelectorAll("[data-ae-go-to]").forEach((button) => {
+      button.addEventListener("click", () => activateView(button.dataset.aeGoTo));
     });
     content.querySelector("[data-ae-quality-refresh]")?.addEventListener("click", () => {
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);

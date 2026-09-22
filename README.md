@@ -16,6 +16,11 @@ Use the **Overview** and **Actors** tabs to switch between daily trends and the
 per-Actor ranking. Actor rows include revenue, cost, profit, paying users, run
 success rate, result volume, and pricing model.
 
+The **Overview** is an executive command center: financial pacing and current-month
+projection, a compact revenue/profit pulse, prioritized Actor alerts, revenue
+concentration, top contributors, projected Actor momentum, portfolio run health,
+acquisition, and quality snapshots. Snapshot links open the relevant detailed view.
+
 The Actors tab also includes a month-to-date revenue composition chart and a run
 health dashboard. Revenue bars are split into net profit and cost; the health
 dashboard ranks Actors by failed, aborted, and timed-out runs.
