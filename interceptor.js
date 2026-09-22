@@ -12,6 +12,8 @@
   const loadingMonths = new Set();
   const runLoadingMonths = new Set();
   const userLoadingMonths = new Set();
+  const qualityLoadingMonths = new Set();
+  const qualityRequestedMonths = new Set();
   const manualLoadingMonths = new Set();
   let latestProfitTemplate = null;
 
@@ -175,6 +177,77 @@
     }
   };
 
+  const loadActorQuality = async (month) => {
+    const key = monthKey(month);
+    const actors = actorsByMonth.get(key);
+    const template = profitRequestByMonth.get(key) || latestProfitTemplate;
+    if (!key || qualityLoadingMonths.has(key)) return;
+    if (!actors?.length || !template) {
+      post({
+        type: "ACTOR_QUALITY_STATUS",
+        month: key,
+        status: "waiting-request",
+        completed: 0,
+        total: actors?.length || 0,
+        message: !actors?.length
+          ? "Waiting for the Actor breakdown for this month."
+          : "Waiting for an authenticated Apify analytics request.",
+      });
+      return;
+    }
+
+    qualityLoadingMonths.add(key);
+    let completed = 0;
+    post({ type: "ACTOR_QUALITY_STATUS", month: key, status: "loading", completed, total: actors.length });
+
+    const getJson = async (pathname) => {
+      const url = new URL(pathname, template.url);
+      const response = await loadWithTimeout(url.href, template.init);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+
+    const loadActor = async (actor) => {
+      const actorId = encodeURIComponent(actor.id);
+      const requests = await Promise.allSettled([
+        getJson(`/actor-quality/praises-and-improvements/${actorId}`),
+        getJson(`/actor/${actorId}/basic-info`),
+        getJson(`/actor-quality/scores/${actorId}`),
+        getJson(`/actor/${actorId}/metrics`),
+      ]);
+      const value = (index) => requests[index].status === "fulfilled" ? requests[index].value : null;
+      const errors = requests
+        .filter((request) => request.status === "rejected")
+        .map((request) => String(request.reason?.message || "Request failed"));
+      post({
+        type: "ACTOR_QUALITY_DATA",
+        month: key,
+        actorId: actor.id,
+        payload: {
+          feedback: value(0),
+          basicInfo: value(1),
+          scores: value(2),
+          metrics: value(3),
+          errors,
+        },
+      });
+      completed += 1;
+      post({ type: "ACTOR_QUALITY_STATUS", month: key, status: "loading", completed, total: actors.length });
+    };
+
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < actors.length) {
+        const actor = actors[cursor];
+        cursor += 1;
+        await loadActor(actor);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, actors.length) }, worker));
+    post({ type: "ACTOR_QUALITY_STATUS", month: key, status: "complete", completed, total: actors.length });
+    qualityLoadingMonths.delete(key);
+  };
+
   const storeProfitTemplate = (url, init) => {
     const key = monthKey(url.searchParams.get("month"));
     if (!key) return;
@@ -184,6 +257,7 @@
     void maybeLoadDailyActors(key);
     void maybeLoadDailyRuns(key);
     void maybeLoadDailyUsers(key);
+    if (qualityRequestedMonths.has(key)) void loadActorQuality(key);
   };
 
   const rememberProfitRequest = (request, init, url) => {
@@ -252,6 +326,7 @@
       void maybeLoadDailyActors(key);
       void maybeLoadDailyRuns(key);
       void maybeLoadDailyUsers(key);
+      if (qualityRequestedMonths.has(key)) void loadActorQuality(key);
     }
 
     post({ type, month: url.searchParams.get("month"), payload });
@@ -371,7 +446,12 @@
 
   window.addEventListener("message", (event) => {
     if (event.source !== window || event.origin !== window.location.origin) return;
-    if (event.data?.source !== MESSAGE_SOURCE || event.data?.type !== "REQUEST_MONTH") return;
-    void requestMonth(event.data.month);
+    if (event.data?.source !== MESSAGE_SOURCE) return;
+    if (event.data?.type === "REQUEST_MONTH") void requestMonth(event.data.month);
+    if (event.data?.type === "REQUEST_ACTOR_QUALITY") {
+      const key = monthKey(event.data.month);
+      if (key) qualityRequestedMonths.add(key);
+      void loadActorQuality(key);
+    }
   });
 })();

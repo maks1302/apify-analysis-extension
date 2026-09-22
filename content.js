@@ -3,8 +3,10 @@
 
   const MESSAGE_SOURCE = "apify-earnings-dashboard";
   const STORAGE_KEY = "apifyEarningsMonths";
+  const QUALITY_STORAGE_KEY = "apifyActorQuality";
   const UI_ID = "apify-earnings-extension-root";
   let months = {};
+  let actorQuality = {};
   let selectedMonth = null;
   let panelOpen = false;
   let activeView = "overview";
@@ -14,10 +16,12 @@
   let userMetric = "payingUsers";
   let selectedActorIds = null;
   let actorPickerOpen = false;
+  const expandedQualityActorIds = new Set();
   let pendingMonth = null;
   const dailyLoadStatus = {};
   const runLoadStatus = {};
   const userLoadStatus = {};
+  const qualityLoadStatus = {};
   const monthLoadStatus = {};
 
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -123,6 +127,101 @@
     }
   }
 
+  function plainText(value) {
+    if (!value) return "";
+    const element = document.createElement("div");
+    element.innerHTML = String(value);
+    return String(element.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function firstHttpsLink(value) {
+    if (!value) return "";
+    const element = document.createElement("div");
+    element.innerHTML = String(value);
+    const href = element.querySelector("a[href]")?.getAttribute("href");
+    return safeImageUrl(href);
+  }
+
+  function normalizeActorQuality(payload, actorId) {
+    if (!payload || typeof payload !== "object") return null;
+    const basic = payload.basicInfo || {};
+    const stats = basic.stats || {};
+    const scores = payload.scores || {};
+    const metrics = payload.metrics || {};
+    const feedback = payload.feedback || {};
+    const runStats = metrics.publicActorRunStats30Days || stats.publicActorRunStats30Days || {};
+    const pricing = Array.isArray(basic.pricingInfos) ? basic.pricingInfos.at(-1) || {} : {};
+    const firstNumber = (...values) => {
+      const value = values.find((item) => item !== null && item !== undefined && item !== "" && Number.isFinite(Number(item)));
+      return number(value);
+    };
+
+    return {
+      id: String(basic._id || actorId || ""),
+      name: String(basic.name || ""),
+      title: String(basic.title || basic.name || "Unknown actor"),
+      username: String(basic.username || ""),
+      pictureUrl: safeImageUrl(basic.pictureUrl),
+      description: plainText(basic.description),
+      categories: Array.isArray(basic.categories) ? basic.categories.map(String) : [],
+      isPublic: Boolean(basic.isPublic),
+      isDeprecated: Boolean(basic.isDeprecated),
+      notice: String(basic.notice || "NONE"),
+      memoryMbytes: number(basic.defaultRunOptions?.memoryMbytes),
+      timeoutSecs: number(basic.defaultRunOptions?.timeoutSecs),
+      pricingModel: String(pricing.pricingModel || "Unknown"),
+      hasQualityScore: scores.actorQuality !== null && scores.actorQuality !== undefined && Number.isFinite(Number(scores.actorQuality)),
+      quality: number(scores.actorQuality),
+      qualityPercentile: number(scores.actorQualityPercentile),
+      hasInputSchema: Boolean(scores.hasInputSchema),
+      hasOutputSchema: Boolean(scores.hasOutputSchema),
+      hasReadme: Boolean(scores.hasReadme),
+      bookmarks: firstNumber(metrics.bookmarkCount, stats.bookmarkCount),
+      reviewCount: firstNumber(metrics.actorReviewCount, stats.actorReviewCount),
+      reviewRating: firstNumber(metrics.actorReviewRating, stats.actorReviewRating),
+      totalBuilds: firstNumber(metrics.totalBuilds, stats.totalBuilds),
+      totalRuns: firstNumber(metrics.totalRuns, stats.totalRuns),
+      totalUsers: firstNumber(metrics.totalUsers, stats.totalUsers),
+      users7Days: firstNumber(metrics.totalUsers7Days, stats.totalUsers7Days),
+      users30Days: firstNumber(metrics.totalUsers30Days, stats.totalUsers30Days),
+      users90Days: firstNumber(metrics.totalUsers90Days, stats.totalUsers90Days),
+      lastRunStartedAt: String(metrics.lastRunStartedAt || stats.lastRunStartedAt || ""),
+      createdAt: String(basic.createdAt || metrics.createdAt || ""),
+      firstPublishedAt: String(basic.firstPublishedAt || ""),
+      issueResponseTimeDays: metrics.issueResponseTimeDays == null ? null : number(metrics.issueResponseTimeDays),
+      runSuccessRate: Number.isFinite(Number(metrics.runSuccessRate))
+        ? Number(metrics.runSuccessRate)
+        : number(runStats.TOTAL) ? number(runStats.SUCCEEDED) / number(runStats.TOTAL) : 0,
+      runs30Days: {
+        total: number(runStats.TOTAL),
+        succeeded: number(runStats.SUCCEEDED),
+        failed: number(runStats.FAILED),
+        aborted: number(runStats.ABORTED),
+        timedOut: number(runStats["TIMED-OUT"]),
+      },
+      praises: Array.isArray(feedback.praises) ? feedback.praises.map((item) => ({
+        title: plainText(item?.title),
+        description: plainText(item?.description),
+        percentile: number(item?.percentile),
+      })) : [],
+      improvements: Array.isArray(feedback.improvements) ? feedback.improvements.map((item) => ({
+        id: String(item?.id || ""),
+        title: plainText(item?.title),
+        description: plainText(item?.description),
+        link: firstHttpsLink(item?.description),
+      })) : [],
+      errors: Array.isArray(payload.errors) ? payload.errors.map(String) : [],
+      capturedAt: new Date().toISOString(),
+    };
+  }
+
+  async function saveActorQuality(quality) {
+    if (!quality?.id) return;
+    actorQuality[quality.id] = quality;
+    await chrome.storage.local.set({ [QUALITY_STORAGE_KEY]: actorQuality });
+    render();
+  }
+
   function normalizeActorBreakdown(payload, requestedMonth) {
     if (!payload || !Array.isArray(payload.monetizationPerActor)) return null;
     const actors = payload.monetizationPerActor.map((item) => {
@@ -185,6 +284,9 @@
     };
     selectedMonth = breakdown.month;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
+    if (activeView === "quality") {
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: breakdown.month }, window.location.origin);
+    }
     render();
   }
 
@@ -709,6 +811,113 @@
     </div>`;
   }
 
+  function actorQualityMarkup(data) {
+    const actors = selectedActors(data);
+    const status = qualityLoadStatus[data?.month];
+    if (!actors.length) {
+      return `<div class="ae-empty ae-empty-actors"><div class="ae-empty-icon">◇</div><h2>No Actors selected</h2><p>Choose one or more Actors to inspect their quality signals.</p></div>`;
+    }
+
+    const loaded = actors.map((actor) => actorQuality[actor.id]).filter(Boolean);
+    const scored = loaded.filter((item) => item.hasQualityScore);
+    const averageQuality = scored.length ? scored.reduce((sum, item) => sum + item.quality, 0) / scored.length : 0;
+    const strongActors = scored.filter((item) => item.quality >= .8).length;
+    const actionItems = loaded.reduce((sum, item) => sum + item.improvements.length, 0);
+    const bestPercentile = scored.length ? Math.max(...scored.map((item) => item.qualityPercentile)) : 0;
+    const progress = actors.length ? Math.min(100, (loaded.length / actors.length) * 100) : 0;
+    const sorted = [...actors].sort((a, b) => {
+      const left = actorQuality[a.id];
+      const right = actorQuality[b.id];
+      if (left && !right) return -1;
+      if (!left && right) return 1;
+      if (left?.hasQualityScore && !right?.hasQualityScore) return -1;
+      if (!left?.hasQualityScore && right?.hasQualityScore) return 1;
+      return number(right?.quality) - number(left?.quality) || a.title.localeCompare(b.title);
+    });
+    const dateLabel = (value) => value
+      ? new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+      : "—";
+    const check = (label, passed) => `<span class="ae-quality-check ${passed ? "ae-pass" : "ae-missing"}"><i>${passed ? "✓" : "×"}</i>${escapeHtml(label)}</span>`;
+
+    const rows = sorted.map((actor) => {
+      const quality = actorQuality[actor.id];
+      const expanded = expandedQualityActorIds.has(actor.id);
+      const picture = quality?.pictureUrl || actor.pictureUrl;
+      const title = quality?.title || actor.title;
+      const name = quality?.name || actor.name;
+      const qualityTone = !quality?.hasQualityScore ? "" : quality.quality >= .8 ? "ae-quality-good" : quality.quality >= .6 ? "ae-quality-medium" : "ae-quality-low";
+      const qualityValue = quality?.hasQualityScore ? `${(quality.quality * 100).toFixed(1)}` : "—";
+      const rating = quality?.reviewCount ? `${quality.reviewRating.toFixed(1)}` : "—";
+      const details = quality && expanded ? `<div class="ae-quality-details">
+        <div class="ae-quality-checks">
+          ${check("Input schema", quality.hasInputSchema)}
+          ${check("Output schema", quality.hasOutputSchema)}
+          ${check("README", quality.hasReadme)}
+          <span class="ae-quality-category">${quality.isPublic ? "public" : "private"}</span>
+          <span class="ae-quality-category">${escapeHtml(quality.pricingModel.replaceAll("_", " ").toLowerCase())}</span>
+          ${quality.memoryMbytes ? `<span class="ae-quality-category">${integer(quality.memoryMbytes)} MB memory</span>` : ""}
+          ${quality.timeoutSecs ? `<span class="ae-quality-category">${integer(quality.timeoutSecs)}s timeout</span>` : ""}
+          ${quality.isDeprecated ? '<span class="ae-quality-category ae-quality-category-alert">deprecated</span>' : ""}
+          ${quality.categories.map((category) => `<span class="ae-quality-category">${escapeHtml(category.replaceAll("_", " ").toLowerCase())}</span>`).join("")}
+        </div>
+        ${quality.description ? `<p class="ae-quality-description">${escapeHtml(quality.description)}</p>` : ""}
+        <div class="ae-quality-detail-grid">
+          <div><span>Total runs</span><strong>${integer(quality.totalRuns)}</strong><small>${integer(quality.runs30Days.total)} in the last 30 days</small></div>
+          <div><span>Total builds</span><strong>${integer(quality.totalBuilds)}</strong><small>Created ${escapeHtml(dateLabel(quality.createdAt))}</small></div>
+          <div><span>Users · 7 / 30 / 90d</span><strong>${integer(quality.users7Days)} / ${integer(quality.users30Days)} / ${integer(quality.users90Days)}</strong><small>${integer(quality.totalUsers)} lifetime users</small></div>
+          <div><span>Last run</span><strong>${escapeHtml(dateLabel(quality.lastRunStartedAt))}</strong><small>Published ${escapeHtml(dateLabel(quality.firstPublishedAt))}</small></div>
+          <div><span>30d failures</span><strong>${integer(quality.runs30Days.failed)}</strong><small>${integer(quality.runs30Days.aborted)} aborted · ${integer(quality.runs30Days.timedOut)} timed out</small></div>
+          <div><span>Issue response</span><strong>${quality.issueResponseTimeDays == null ? "—" : `${quality.issueResponseTimeDays.toFixed(1)}d`}</strong><small>${quality.errors.length ? `${quality.errors.length} source request unavailable` : "All quality sources loaded"}</small></div>
+        </div>
+        <div class="ae-quality-feedback-grid">
+          <section>
+            <div class="ae-quality-feedback-title"><span class="ae-quality-feedback-icon ae-praise">↑</span><div><strong>Praises</strong><small>${quality.praises.length} strengths recognized</small></div></div>
+            <div class="ae-quality-feedback-list">${quality.praises.map((item) => `<article class="ae-quality-feedback-item"><div><strong>${escapeHtml(item.title)}</strong><span>${(item.percentile * 100).toFixed(1)}th percentile</span></div><p>${escapeHtml(item.description)}</p></article>`).join("") || '<div class="ae-quality-feedback-empty">No praise signals reported yet.</div>'}</div>
+          </section>
+          <section>
+            <div class="ae-quality-feedback-title"><span class="ae-quality-feedback-icon ae-improve">!</span><div><strong>Improvements</strong><small>${quality.improvements.length} recommended actions</small></div></div>
+            <div class="ae-quality-feedback-list">${quality.improvements.map((item) => `<article class="ae-quality-feedback-item"><div><strong>${escapeHtml(item.title)}</strong>${item.link ? `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">Guide ↗</a>` : ""}</div><p>${escapeHtml(item.description)}</p></article>`).join("") || '<div class="ae-quality-feedback-empty">No improvement actions reported.</div>'}</div>
+          </section>
+        </div>
+      </div>` : "";
+
+      return `<article class="ae-quality-row ${expanded ? "ae-expanded" : ""}">
+        <button type="button" class="ae-quality-row-main" data-ae-quality-toggle="${escapeHtml(actor.id)}" aria-expanded="${expanded}" ${quality ? "" : "disabled"}>
+          <div class="ae-quality-identity">
+            <div class="ae-actor-avatar">${picture ? `<img src="${escapeHtml(picture)}" alt="" loading="lazy" referrerpolicy="no-referrer"/>` : `<span>${escapeHtml(title.slice(0, 2).toUpperCase())}</span>`}</div>
+            <div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(name)}</span></div>
+          </div>
+          <div class="ae-quality-metric ${qualityTone}"><strong>${qualityValue}</strong><span>${quality?.hasQualityScore ? `${(quality.qualityPercentile * 100).toFixed(1)}th percentile` : quality ? "Score unavailable" : status?.status === "loading" ? "Loading…" : "Not loaded"}</span></div>
+          <div class="ae-quality-metric"><strong>${quality ? percent(quality.runSuccessRate) : "—"}</strong><span>success rate</span></div>
+          <div class="ae-quality-metric"><strong>${quality ? integer(quality.totalUsers) : "—"}</strong><span>users</span></div>
+          <div class="ae-quality-metric"><strong>${rating}</strong><span>${quality ? `${integer(quality.reviewCount)} reviews` : "rating"}</span></div>
+          <div class="ae-quality-metric"><strong>${quality ? integer(quality.bookmarks) : "—"}</strong><span>bookmarks</span></div>
+          <span class="ae-quality-chevron">⌄</span>
+        </button>
+        ${details}
+      </article>`;
+    }).join("");
+
+    return `<div class="ae-quality-dashboard">
+      <div class="ae-quality-summary">
+        <article><span>Average quality</span><strong>${scored.length ? `${(averageQuality * 100).toFixed(1)}` : "—"}</strong><small>Across ${scored.length} scored Actors</small></article>
+        <article><span>Strong quality</span><strong>${integer(strongActors)}</strong><small>Score of 80 or higher</small></article>
+        <article><span>Best percentile</span><strong>${scored.length ? `${(bestPercentile * 100).toFixed(1)}th` : "—"}</strong><small>Portfolio high point</small></article>
+        <article><span>Action items</span><strong>${integer(actionItems)}</strong><small>Recommended improvements</small></article>
+      </div>
+      <section class="ae-quality-list-card">
+        <div class="ae-card-heading ae-quality-heading">
+          <div><span>Actor quality</span><small>Store readiness, reliability, adoption, and user feedback</small></div>
+          <button type="button" data-ae-quality-refresh>${status?.status === "loading" ? `Loading ${status.completed}/${status.total}` : loaded.length ? "Refresh quality" : "Load quality"}</button>
+        </div>
+        <div class="ae-quality-list-head"><span>Actor</span><span>Quality</span><span>Success</span><span>Users</span><span>Rating</span><span>Saved</span><span></span></div>
+        <div class="ae-quality-list">${rows}</div>
+        ${status?.status === "waiting-request" ? `<div class="ae-quality-notice">${escapeHtml(status.message || "Waiting for authenticated Apify data.")}</div>` : ""}
+        ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Loaded ${loaded.length} of ${actors.length} Actors</span></div>` : ""}
+      </section>
+    </div>`;
+  }
+
   function actorBreakdownMarkup(data) {
     const breakdown = data?.actorBreakdown;
     if (!breakdown?.actors?.length) {
@@ -910,6 +1119,7 @@
         <button type="button" data-ae-view="runs" class="${activeView === "runs" ? "ae-active" : ""}">Daily runs <span>${Object.keys(data.actorRunDaily || {}).length || ""}</span></button>
         <button type="button" data-ae-view="users" class="${activeView === "users" ? "ae-active" : ""}">Daily users <span>${Object.keys(data.actorUserDaily || {}).length || ""}</span></button>
         <button type="button" data-ae-view="actors" class="${activeView === "actors" ? "ae-active" : ""}">Actors <span>${pickedCount || ""}</span></button>
+        <button type="button" data-ae-view="quality" class="${activeView === "quality" ? "ae-active" : ""}">Quality <span>${actorsForPicker.filter((actor) => actorQuality[actor.id]).length || ""}</span></button>
       </nav>`;
 
     if (!hasOverview) {
@@ -924,6 +1134,7 @@
         <div class="ae-view ${activeView === "runs" ? "ae-visible" : ""}" data-ae-section="runs">${dailyRunsMarkup(data)}</div>
         <div class="ae-view ${activeView === "users" ? "ae-visible" : ""}" data-ae-section="users">${dailyUsersMarkup(data)}</div>
         <div class="ae-view ${activeView === "actors" ? "ae-visible" : ""}" data-ae-section="actors">${actorBreakdownMarkup(data)}</div>
+        <div class="ae-view ${activeView === "quality" ? "ae-visible" : ""}" data-ae-section="quality">${actorQualityMarkup(data)}</div>
       </div>`;
     }
 
@@ -983,6 +1194,9 @@
       </div>
       <div class="ae-view ${activeView === "actors" ? "ae-visible" : ""}" data-ae-section="actors">
         ${actorBreakdownMarkup(data)}
+      </div>
+      <div class="ae-view ${activeView === "quality" ? "ae-visible" : ""}" data-ae-section="quality">
+        ${actorQualityMarkup(data)}
       </div>
     </div>`;
   }
@@ -1141,6 +1355,21 @@
     content.querySelectorAll("[data-ae-view]").forEach((button) => {
       button.addEventListener("click", () => {
         activeView = button.dataset.aeView;
+        if (activeView === "quality") {
+          const needsQuality = (data?.actorBreakdown?.actors || []).some((actor) => !actorQuality[actor.id]);
+          if (needsQuality) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
+        }
+        render();
+      });
+    });
+    content.querySelector("[data-ae-quality-refresh]")?.addEventListener("click", () => {
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
+    });
+    content.querySelectorAll("[data-ae-quality-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const actorId = button.dataset.aeQualityToggle;
+        if (expandedQualityActorIds.has(actorId)) expandedQualityActorIds.delete(actorId);
+        else expandedQualityActorIds.add(actorId);
         render();
       });
     });
@@ -1232,6 +1461,20 @@
         };
         render();
       }
+    } else if (event.data?.type === "ACTOR_QUALITY_DATA") {
+      const quality = normalizeActorQuality(event.data.payload, event.data.actorId);
+      if (quality) void saveActorQuality(quality);
+    } else if (event.data?.type === "ACTOR_QUALITY_STATUS") {
+      const key = String(event.data.month || "").slice(0, 7);
+      if (key) {
+        qualityLoadStatus[key] = {
+          status: event.data.status,
+          completed: number(event.data.completed),
+          total: number(event.data.total),
+          message: String(event.data.message || ""),
+        };
+        render();
+      }
     } else if (event.data?.type === "MONTH_LOAD_STATUS") {
       const key = String(event.data.month || "").slice(0, 7);
       if (key) {
@@ -1248,9 +1491,12 @@
     }
   });
 
-  chrome.storage.local.get(STORAGE_KEY).then((result) => {
+  chrome.storage.local.get([STORAGE_KEY, QUALITY_STORAGE_KEY]).then((result) => {
     months = result[STORAGE_KEY] && typeof result[STORAGE_KEY] === "object"
       ? result[STORAGE_KEY]
+      : {};
+    actorQuality = result[QUALITY_STORAGE_KEY] && typeof result[QUALITY_STORAGE_KEY] === "object"
+      ? result[QUALITY_STORAGE_KEY]
       : {};
     render();
   });

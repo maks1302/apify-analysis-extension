@@ -10,7 +10,7 @@ A local-only Chrome extension that visualizes the profit-margin data already loa
 4. Select this project directory.
 5. Open Apify Console and visit the Monetization dashboard.
 6. Reload the Apify page once after installing the extension.
-7. Click the purple **Earnings** button in the lower-right corner.
+7. Click the **Analytics** button in the Monetization chart header (or the fallback button in the lower-right corner).
 
 Use the **Overview** and **Actors** tabs to switch between daily trends and the
 per-Actor ranking. Actor rows include revenue, cost, profit, paying users, run
@@ -48,6 +48,13 @@ The **Daily users** tab loads `/actor-analytics/user-count-statistics` for each
 Actor and visualizes paying, free, and total Actor-user occurrences by day. These
 totals are not claimed as globally unique users because one person can use more
 than one Actor.
+
+The **Quality** tab lazily loads Actor quality scores, praises and improvements,
+basic information, and operational metrics when opened. Its collapsed list shows
+quality, success rate, users, rating, reviews, and bookmarks. Expanding an Actor
+shows schema and README checks, user-growth windows, run history, categories,
+praises, and recommended improvements. Quality data is cached separately from
+monthly analytics because it belongs to the Actor rather than a reporting month.
 
 ## How the MVP works
 
