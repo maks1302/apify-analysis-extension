@@ -1512,7 +1512,7 @@
             <button id="ae-load-month" type="button">${loadState?.status === "loading" ? "Loading…" : "Load"}</button>
           </div>
           <div class="ae-actor-picker ${actorPickerOpen ? "ae-picker-open" : ""}">
-            <button id="ae-actor-picker-button" type="button"><span>${escapeHtml(actorFilterLabel)}</span><i>⌄</i></button>
+            <button id="ae-actor-picker-button" type="button" aria-haspopup="true" aria-expanded="${actorPickerOpen}"><span>${escapeHtml(actorFilterLabel)}</span><i>⌄</i></button>
             <div class="ae-actor-picker-menu">
               <div class="ae-picker-actions"><button type="button" data-ae-actors-action="all">Select all</button><button type="button" data-ae-actors-action="none">Clear</button></div>
               <input id="ae-actor-search" type="search" placeholder="Search Actors…" autocomplete="off" />
@@ -1649,6 +1649,12 @@
     root.querySelector("#ae-fullscreen-toggle").addEventListener("click", () => setPanelFullscreen(!panelFullscreen));
     root.querySelector("#ae-close").addEventListener("click", () => setPanel(false));
     root.querySelector("#ae-backdrop").addEventListener("click", () => setPanel(false));
+    root.addEventListener("click", (event) => {
+      if (!actorPickerOpen || !(event.target instanceof Element)) return;
+      if (event.target.closest(".ae-actor-picker")) return;
+      actorPickerOpen = false;
+      render();
+    });
     const panelContent = root.querySelector("#ae-panel-content");
     panelContent.addEventListener("pointerdown", () => {
       dashboardPointerActive = true;
@@ -1668,6 +1674,11 @@
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !panelOpen) return;
+      if (actorPickerOpen) {
+        actorPickerOpen = false;
+        render();
+        return;
+      }
       if (panelFullscreen) setPanelFullscreen(false);
       else setPanel(false);
     });
@@ -1699,6 +1710,7 @@
 
   function setPanel(open) {
     panelOpen = open;
+    if (!open) actorPickerOpen = false;
     const root = ensureUi();
     if (!root) return;
     root.classList.toggle("ae-open", open);
@@ -1807,7 +1819,10 @@
     const root = ensureUi();
     if (!root) return;
     const keys = Object.keys(months).sort();
-    if (!selectedMonth || !months[selectedMonth]) selectedMonth = keys.at(-1) || null;
+    if (!selectedMonth || !months[selectedMonth]) {
+      const currentMonth = localDateKey().slice(0, 7);
+      selectedMonth = months[currentMonth] ? currentMonth : keys.at(-1) || null;
+    }
     const data = selectedMonth ? months[selectedMonth] : null;
     if (panelOpen && (activeView === "overview" || activeView === "actors") && data?.month) {
       const comparisonKey = offsetMonth(data.month, -1);

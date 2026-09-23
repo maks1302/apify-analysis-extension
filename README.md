@@ -64,6 +64,8 @@ total. This applies to both financial and run-statistic charts.
 Use the month and year selectors to request another period with the current
 in-memory Apify session. The Actor multi-select defaults to all Actors and filters
 the overview, financial stacks, run stacks, rankings, and health tables locally.
+On startup, the dashboard prefers the current calendar month when it has been
+captured; otherwise it shows the newest locally cached month until current data arrives.
 
 On the Apify Monetization page, **Advanced analytics** is mounted into the chart
 card header using stable `data-test` selectors. A MutationObserver restores it
