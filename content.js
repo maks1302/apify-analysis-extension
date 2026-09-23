@@ -5,6 +5,7 @@
   const STORAGE_KEY = "apifyEarningsMonths";
   const QUALITY_STORAGE_KEY = "apifyActorQuality";
   const UI_ID = "apify-earnings-extension-root";
+  const SUPPORT_URL = "https://github.com/maks1302/apify-analysis-extension/issues";
   let months = {};
   let actorQuality = {};
   let selectedMonth = null;
@@ -17,6 +18,7 @@
   let userMetric = "payingUsers";
   let selectedActorIds = null;
   let actorPickerOpen = false;
+  let helpOpen = false;
   const expandedQualityActorIds = new Set();
   const expandedMarketingActorIds = new Set();
   let pendingMonth = null;
@@ -1641,6 +1643,22 @@
         <header class="ae-panel-header">
           <div class="ae-brand"><div class="ae-logo" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3 13.5V9.75M7 13.5V5.75M11 13.5V8M15 13.5V3.5"/></svg></div><div><strong>Actor Analytics</strong><span>Private workspace</span></div></div>
           <div class="ae-panel-actions">
+            <div class="ae-help-wrap">
+              <button id="ae-help-toggle" type="button" aria-label="Help, privacy, and contact" title="Help, privacy, and contact" aria-expanded="false" aria-controls="ae-help-popover"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M8.3 7.7a1.9 1.9 0 0 1 3.5 1c0 1.6-1.8 1.8-1.8 3M10 14.3h.01"/></svg></button>
+              <section id="ae-help-popover" class="ae-help-popover" aria-label="Privacy and help" hidden>
+                <header><div><strong>Privacy &amp; help</strong><span>Version ${escapeHtml(chrome.runtime.getManifest().version)}</span></div><span class="ae-help-local"><i></i>Local-only</span></header>
+                <div class="ae-help-status"><strong>No telemetry or tracking</strong><span>Your analytics are never sent to the developer or an analytics service.</span></div>
+                <dl class="ae-help-facts">
+                  <div><dt>Where it runs</dt><dd>Only on console.apify.com</dd></div>
+                  <div><dt>Analytics requests</dt><dd>Apify Console backend only</dd></div>
+                  <div><dt>Browser permission</dt><dd>Local storage only</dd></div>
+                  <div><dt>What is stored</dt><dd>Normalized dashboard data on this device</dd></div>
+                  <div><dt>Authentication</dt><dd>Uses the active Apify session in memory; tokens and headers are not persisted</dd></div>
+                </dl>
+                <a class="ae-help-contact" href="${SUPPORT_URL}" target="_blank" rel="noopener noreferrer">Help &amp; contact <span>↗</span></a>
+                <p>The external support page opens only when you click the link above.</p>
+              </section>
+            </div>
             <button id="ae-fullscreen-toggle" type="button" aria-label="Enter fullscreen analysis" title="Enter fullscreen analysis"></button>
             <button id="ae-close" type="button" aria-label="Close dashboard">×</button>
           </div>
@@ -1652,14 +1670,24 @@
     syncApifyTheme(root);
 
     root.querySelector("#ae-launcher").addEventListener("click", () => setPanel(true));
+    root.querySelector("#ae-help-toggle").addEventListener("click", () => {
+      const pickerWasOpen = actorPickerOpen;
+      actorPickerOpen = false;
+      setHelpOpen(!helpOpen, root);
+      if (pickerWasOpen) render();
+    });
     root.querySelector("#ae-fullscreen-toggle").addEventListener("click", () => setPanelFullscreen(!panelFullscreen));
     root.querySelector("#ae-close").addEventListener("click", () => setPanel(false));
     root.querySelector("#ae-backdrop").addEventListener("click", () => setPanel(false));
     root.addEventListener("click", (event) => {
-      if (!actorPickerOpen || !(event.target instanceof Element)) return;
-      if (event.target.closest(".ae-actor-picker")) return;
-      actorPickerOpen = false;
-      render();
+      if (!(event.target instanceof Element)) return;
+      let needsRender = false;
+      if (actorPickerOpen && !event.target.closest(".ae-actor-picker")) {
+        actorPickerOpen = false;
+        needsRender = true;
+      }
+      if (helpOpen && !event.target.closest(".ae-help-wrap")) setHelpOpen(false, root);
+      if (needsRender) render();
     });
     const panelContent = root.querySelector("#ae-panel-content");
     panelContent.addEventListener("pointerdown", () => {
@@ -1680,6 +1708,10 @@
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !panelOpen) return;
+      if (helpOpen) {
+        setHelpOpen(false);
+        return;
+      }
       if (actorPickerOpen) {
         actorPickerOpen = false;
         render();
@@ -1719,6 +1751,7 @@
     if (!open) actorPickerOpen = false;
     const root = ensureUi();
     if (!root) return;
+    if (!open) setHelpOpen(false, root);
     root.classList.toggle("ae-open", open);
     root.querySelector("#ae-panel").setAttribute("aria-hidden", String(!open));
     if (open) render();
@@ -1736,6 +1769,15 @@
     button.innerHTML = panelFullscreen
       ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3v4.5H3M12.5 3v4.5H17M17 12.5h-4.5V17M3 12.5h4.5V17"/></svg>'
       : '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M17 13v4h-4M3 13v4h4"/></svg>';
+  }
+
+  function setHelpOpen(open, root = document.getElementById(UI_ID)) {
+    helpOpen = Boolean(open);
+    if (!root) return;
+    const button = root.querySelector("#ae-help-toggle");
+    const popover = root.querySelector("#ae-help-popover");
+    button?.setAttribute("aria-expanded", String(helpOpen));
+    if (popover) popover.hidden = !helpOpen;
   }
 
   function setPanelFullscreen(fullscreen) {

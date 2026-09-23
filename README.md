@@ -103,4 +103,14 @@ The endpoint is internal to Apify and may change. If the dashboard stays in the 
 
 ## Security
 
-The extension deliberately has only the `storage` permission and access to `https://console.apify.com/*`. It has no `cookies`, `webRequest`, or broad host permissions. Do not add an Apify token to these source files.
+The extension deliberately has only the `storage` permission and runs only on
+`https://console.apify.com/*`. Its authenticated analytics requests go only to
+`console-backend.apify.com`, using the active Apify page session in memory. It has
+no `cookies`, `webRequest`, or broad host permissions, does not persist request
+headers or tokens, and contains no telemetry or third-party analytics calls.
+
+Normalized dashboard data is stored locally in `chrome.storage.local`. Actor
+avatars may load from Apify's image-storage host. The small help icon in the
+dashboard header exposes this privacy summary in-product. Its external GitHub
+support link opens only after an explicit user click. Do not add an Apify token
+to these source files.

@@ -26,10 +26,14 @@
   };
 
   const loadWithTimeout = async (url, init, timeoutMs = 20000) => {
+    const target = new URL(url, window.location.href);
+    if (target.protocol !== "https:" || target.hostname !== ENDPOINT_HOST) {
+      throw new Error("Blocked non-Apify analytics request");
+    }
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
-      return await originalFetch(url, { ...init, signal: controller.signal });
+      return await originalFetch(target.href, { ...init, signal: controller.signal });
     } finally {
       window.clearTimeout(timeoutId);
     }
