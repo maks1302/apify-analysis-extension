@@ -161,6 +161,22 @@ Prepare these separately from the extension ZIP:
 - Marquee promotional tile: 1400 × 560 px, optional.
 - YouTube demo URL: add one if requested or if you want a product walkthrough.
 
+This repository includes `store-assets.html` with five capture-ready, opaque
+layouts at the required dimensions. Open the file in Chrome with one of these
+query parameters:
+
+```text
+store-assets.html?asset=screenshot-overview  1280 × 800
+store-assets.html?asset=screenshot-daily     1280 × 800
+store-assets.html?asset=screenshot-health    1280 × 800
+store-assets.html?asset=small-promo          440 × 280
+store-assets.html?asset=marquee-promo        1400 × 560
+```
+
+Set the browser viewport to the matching dimensions and capture only the page
+canvas. Save as JPEG or opaque 24-bit PNG. `store-assets.html` is a marketing
+source file and should not be included in the extension upload ZIP.
+
 Recommended screenshots:
 
 1. Fullscreen Overview with revenue, profit, health, and Actor trends.

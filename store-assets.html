@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Actor Analytics for Apify — Store Assets</title>
+    <style>
+      :root {
+        --bg: #0d0f10;
+        --surface: #161819;
+        --raised: #1d2021;
+        --line: #303334;
+        --text: #f5f6f6;
+        --muted: #9a9fa1;
+        --faint: #646a6d;
+        --orange: #f86000;
+        --blue: #2068f8;
+        --green: #20a048;
+        --red: #d94c5c;
+        --logo: #00c08d;
+      }
+
+      * { box-sizing: border-box; }
+
+      html,
+      body {
+        margin: 0;
+        background: #080a0b;
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body { overflow: hidden; }
+
+      .asset {
+        display: none;
+        overflow: hidden;
+        position: relative;
+        background:
+          radial-gradient(circle at 8% 8%, rgba(32, 104, 248, .16), transparent 31%),
+          radial-gradient(circle at 92% 88%, rgba(32, 160, 72, .11), transparent 28%),
+          var(--bg);
+      }
+
+      .asset.active { display: block; }
+      .screenshot { height: 800px; padding: 58px 68px; width: 1280px; }
+      .small { height: 280px; padding: 25px 27px; width: 440px; }
+      .marquee { height: 560px; padding: 50px 64px; width: 1400px; }
+
+      h1,
+      h2,
+      p { margin: 0; }
+
+      .brand {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+      }
+
+      .brand img {
+        height: 38px;
+        object-fit: contain;
+        width: 38px;
+      }
+
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .brand strong { font-size: 15px; font-weight: 680; letter-spacing: -.01em; }
+      .brand span { color: var(--muted); font-size: 11px; }
+
+      .eyebrow {
+        color: var(--orange);
+        font-size: 12px;
+        font-weight: 750;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+      }
+
+      .hero-copy {
+        left: 68px;
+        position: absolute;
+        top: 146px;
+        width: 475px;
+        z-index: 2;
+      }
+
+      .hero-copy h1 {
+        font-size: 58px;
+        font-weight: 720;
+        letter-spacing: -.052em;
+        line-height: .99;
+        margin-top: 20px;
+      }
+
+      .hero-copy p {
+        color: #b3b8ba;
+        font-size: 19px;
+        line-height: 1.48;
+        margin-top: 23px;
+        max-width: 445px;
+      }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 27px; }
+      .chip {
+        background: rgba(255, 255, 255, .045);
+        border: 1px solid rgba(255, 255, 255, .11);
+        border-radius: 999px;
+        color: #daddde;
+        font-size: 11px;
+        font-weight: 620;
+        padding: 8px 11px;
+      }
+
+      .product-shell {
+        background: #111314;
+        border: 1px solid #36393a;
+        border-radius: 15px;
+        box-shadow: 0 34px 90px rgba(0, 0, 0, .48);
+        overflow: hidden;
+        position: absolute;
+      }
+
+      .screenshot .product-shell {
+        bottom: 49px;
+        height: 646px;
+        right: -34px;
+        transform: perspective(1500px) rotateY(-4deg) rotateX(1deg);
+        transform-origin: center right;
+        width: 708px;
+      }
+
+      .product-header {
+        align-items: center;
+        background: #17191a;
+        border-bottom: 1px solid #292c2d;
+        display: flex;
+        height: 57px;
+        justify-content: space-between;
+        padding: 0 19px;
+      }
+
+      .product-brand { align-items: center; display: flex; gap: 9px; }
+      .product-brand img { height: 25px; object-fit: contain; width: 25px; }
+      .product-brand strong { display: block; font-size: 12px; font-weight: 650; }
+      .product-brand small { color: #73797b; display: block; font-size: 8px; margin-top: 2px; }
+      .header-actions { display: flex; gap: 6px; }
+      .header-actions i { border: 1px solid #343839; border-radius: 5px; height: 23px; width: 23px; }
+
+      .product-content { padding: 18px 19px 20px; }
+      .period-row { align-items: center; display: flex; justify-content: space-between; }
+      .period-row > div:first-child strong { display: block; font-size: 17px; }
+      .period-row > div:first-child small { color: var(--muted); font-size: 8px; }
+      .filters { display: flex; gap: 6px; }
+      .filter { background: #1b1e1f; border: 1px solid #36393a; border-radius: 6px; color: #bdc1c2; font-size: 8px; padding: 7px 9px; }
+
+      .tabs { border-bottom: 1px solid #2c2f30; display: flex; gap: 19px; margin-top: 14px; }
+      .tabs span { color: #777d7f; font-size: 8px; padding: 0 0 10px; }
+      .tabs .active { border-bottom: 2px solid var(--orange); color: #f3f4f4; }
+
+      .kpis { display: grid; gap: 8px; grid-template-columns: repeat(4, 1fr); margin-top: 14px; }
+      .kpi { border-left: 2px solid #3d4142; padding: 7px 8px; }
+      .kpi.blue { border-color: var(--blue); }
+      .kpi.green { border-color: var(--green); }
+      .kpi.orange { border-color: var(--orange); }
+      .kpi span { color: #7e8486; display: block; font-size: 7px; text-transform: uppercase; }
+      .kpi strong { display: block; font-size: 18px; letter-spacing: -.025em; margin-top: 5px; }
+      .kpi small { color: #697072; font-size: 7px; }
+
+      .dashboard-grid { display: grid; gap: 10px; grid-template-columns: 1.3fr .7fr; margin-top: 14px; }
+      .panel { background: #17191a; border: 1px solid #2e3132; border-radius: 8px; padding: 12px; }
+      .panel-title { align-items: center; display: flex; justify-content: space-between; }
+      .panel-title strong { font-size: 9px; }
+      .panel-title small { color: #697072; font-size: 7px; }
+
+      .line-chart { height: 150px; margin-top: 12px; position: relative; }
+      .grid-lines { inset: 0; position: absolute; }
+      .grid-lines i { border-top: 1px solid #282b2c; display: block; height: 37px; }
+      .line-chart svg { inset: 0; overflow: visible; position: absolute; }
+      .line-chart .area { fill: url(#revenueArea); }
+      .line-chart .revenue-line { fill: none; stroke: var(--blue); stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+      .line-chart .profit-line { fill: none; stroke: var(--green); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+      .chart-legend { display: flex; gap: 13px; margin-top: 7px; }
+      .chart-legend span { align-items: center; color: #858b8d; display: flex; font-size: 7px; gap: 5px; }
+      .chart-legend i { border-radius: 50%; height: 5px; width: 5px; }
+
+      .actor-list { display: grid; gap: 12px; margin-top: 13px; }
+      .actor-row { display: grid; gap: 7px; grid-template-columns: minmax(0, 1fr) auto; }
+      .actor-row strong { font-size: 8px; font-weight: 580; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .actor-row b { font-size: 8px; }
+      .track { background: #252829; border-radius: 2px; grid-column: 1 / -1; height: 4px; overflow: hidden; }
+      .track i { background: var(--blue); display: block; height: 100%; }
+
+      .stack-card { margin-top: 14px; }
+      .bars { align-items: end; display: flex; gap: 6px; height: 232px; margin-top: 13px; padding: 0 4px; }
+      .bar { display: flex; flex: 1; flex-direction: column-reverse; height: var(--h); overflow: hidden; }
+      .bar i { display: block; height: var(--s); }
+      .bar i:nth-child(1) { background: #2068f8; }
+      .bar i:nth-child(2) { background: #20a048; }
+      .bar i:nth-child(3) { background: #f86000; }
+      .bar i:nth-child(4) { background: #8b67e8; }
+      .bar i:nth-child(5) { background: #d94c5c; }
+      .bar-labels { color: #62686a; display: flex; font-size: 6px; justify-content: space-between; padding: 7px 5px 0; }
+
+      .tooltip-card {
+        background: #202324;
+        border: 1px solid #45494a;
+        border-radius: 8px;
+        box-shadow: 0 16px 45px rgba(0, 0, 0, .42);
+        padding: 10px;
+        position: absolute;
+        right: 120px;
+        top: 245px;
+        width: 218px;
+      }
+      .tooltip-card > strong { font-size: 9px; }
+      .tooltip-card > span { color: #73797b; display: block; font-size: 7px; margin-top: 2px; }
+      .tooltip-row { align-items: center; border-top: 1px solid #333637; display: grid; font-size: 7px; gap: 6px; grid-template-columns: 6px minmax(0, 1fr) auto; margin-top: 7px; padding-top: 7px; }
+      .tooltip-row i { border-radius: 50%; height: 6px; width: 6px; }
+
+      .health-grid { display: grid; gap: 10px; grid-template-columns: .8fr 1.2fr; margin-top: 14px; }
+      .health-list { display: grid; gap: 9px; margin-top: 12px; }
+      .health-row { align-items: center; border-bottom: 1px solid #292c2d; display: grid; gap: 8px; grid-template-columns: 7px minmax(0, 1fr) auto; padding-bottom: 9px; }
+      .health-row i { background: var(--red); border-radius: 50%; height: 7px; width: 7px; }
+      .health-row strong { font-size: 8px; }
+      .health-row span { color: #f0828e; font-size: 8px; font-weight: 650; }
+      .run-bars { align-items: end; display: flex; gap: 8px; height: 235px; margin-top: 14px; }
+      .run-bar { background: var(--red); flex: 1; height: var(--h); min-height: 3px; opacity: .9; }
+
+      .small::after,
+      .marquee::after,
+      .screenshot::after {
+        border: 1px solid rgba(255, 255, 255, .04);
+        content: "";
+        inset: 0;
+        pointer-events: none;
+        position: absolute;
+      }
+
+      .small .brand img { height: 31px; width: 31px; }
+      .small .brand strong { font-size: 12px; }
+      .small .brand span { font-size: 8px; }
+      .small h2 { font-size: 34px; letter-spacing: -.045em; line-height: 1.02; margin-top: 31px; max-width: 365px; }
+      .small .accent-line { background: var(--orange); height: 3px; margin-top: 24px; width: 48px; }
+      .small .mini-bars { align-items: end; bottom: 0; display: flex; gap: 5px; height: 92px; opacity: .45; position: absolute; right: 25px; width: 134px; }
+      .small .mini-bars i { background: var(--blue); flex: 1; height: var(--h); }
+
+      .marquee .brand img { height: 42px; width: 42px; }
+      .marquee .brand strong { font-size: 16px; }
+      .marquee .brand span { font-size: 10px; }
+      .marquee-copy { left: 64px; position: absolute; top: 154px; width: 535px; }
+      .marquee-copy h1 { font-size: 55px; letter-spacing: -.05em; line-height: 1; }
+      .marquee-copy p { color: #aeb3b5; font-size: 18px; line-height: 1.45; margin-top: 20px; max-width: 490px; }
+      .marquee .product-shell { bottom: -35px; height: 500px; right: -25px; transform: rotate(-1.5deg); width: 720px; }
+      .marquee .product-content { padding-top: 14px; }
+      .marquee .line-chart { height: 135px; }
+    </style>
+  </head>
+  <body>
+    <section class="asset screenshot active" data-asset="screenshot-overview">
+      <div class="brand">
+        <img src="logo.svg" alt="">
+        <div class="brand-copy"><strong>Actor Analytics for Apify</strong><span>by MintAPI</span></div>
+      </div>
+      <div class="hero-copy">
+        <span class="eyebrow">Portfolio intelligence</span>
+        <h1>Know which Actors drive growth.</h1>
+        <p>Revenue, profit, reliability, users, quality, and acquisition—organized into one private analytics workspace.</p>
+        <div class="chips"><span class="chip">Local-first</span><span class="chip">No telemetry</span><span class="chip">Light + dark</span></div>
+      </div>
+      <div class="product-shell">
+        <div class="product-header">
+          <div class="product-brand"><img src="logo.svg" alt=""><div><strong>Actor Analytics</strong><small>by MintAPI</small></div></div>
+          <div class="header-actions"><i></i><i></i><i></i></div>
+        </div>
+        <div class="product-content">
+          <div class="period-row"><div><small>PORTFOLIO OVERVIEW</small><strong>September 2026</strong></div><div class="filters"><span class="filter">Sep</span><span class="filter">2026</span><span class="filter">All Actors</span></div></div>
+          <div class="tabs"><span class="active">Overview</span><span>Daily earnings</span><span>Run activity</span><span>Users</span><span>Actors</span></div>
+          <div class="kpis"><div class="kpi blue"><span>Revenue</span><strong>$3,402</strong><small>+18.6% vs Aug</small></div><div class="kpi green"><span>Net profit</span><strong>$3,330</strong><small>97.9% margin</small></div><div class="kpi orange"><span>Costs</span><strong>$72.47</strong><small>2.1% of revenue</small></div><div class="kpi"><span>Paying users</span><strong>612</strong><small>Across all Actors</small></div></div>
+          <div class="dashboard-grid">
+            <div class="panel"><div class="panel-title"><strong>Financial performance</strong><small>Daily revenue and profit</small></div><div class="line-chart"><div class="grid-lines"><i></i><i></i><i></i><i></i></div><svg viewBox="0 0 360 150" preserveAspectRatio="none"><defs><linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2068f8" stop-opacity=".24"/><stop offset="1" stop-color="#2068f8" stop-opacity="0"/></linearGradient></defs><path class="area" d="M0 127 L28 103 L56 110 L84 62 L112 85 L140 120 L168 107 L196 76 L224 88 L252 105 L280 96 L308 26 L336 72 L360 65 L360 150 L0 150 Z"/><path class="revenue-line" d="M0 127 L28 103 L56 110 L84 62 L112 85 L140 120 L168 107 L196 76 L224 88 L252 105 L280 96 L308 26 L336 72 L360 65"/><path class="profit-line" d="M0 132 L28 108 L56 115 L84 68 L112 90 L140 124 L168 112 L196 82 L224 93 L252 110 L280 101 L308 33 L336 78 L360 72"/></svg></div><div class="chart-legend"><span><i style="background:#2068f8"></i>Revenue</span><span><i style="background:#20a048"></i>Profit</span></div></div>
+            <div class="panel"><div class="panel-title"><strong>Revenue by Actor</strong><small>Top contributors</small></div><div class="actor-list"><div class="actor-row"><strong>X Advanced Search</strong><b>$1,346</b><div class="track"><i style="width:100%"></i></div></div><div class="actor-row"><strong>Yelp Ultimate</strong><b>$752</b><div class="track"><i style="width:56%"></i></div></div><div class="actor-row"><strong>YouTube Search</strong><b>$286</b><div class="track"><i style="width:21%"></i></div></div><div class="actor-row"><strong>Video Downloader</strong><b>$183</b><div class="track"><i style="width:14%"></i></div></div><div class="actor-row"><strong>Instagram Posts</strong><b>$122</b><div class="track"><i style="width:9%"></i></div></div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="asset screenshot" data-asset="screenshot-daily">
+      <div class="brand"><img src="logo.svg" alt=""><div class="brand-copy"><strong>Actor Analytics for Apify</strong><span>by MintAPI</span></div></div>
+      <div class="hero-copy"><span class="eyebrow">Daily earnings</span><h1>See every Actor's contribution.</h1><p>Stacked daily revenue, profit, and cost reveal exactly what moved your portfolio each day.</p><div class="chips"><span class="chip">Full-day tooltips</span><span class="chip">Actor filters</span><span class="chip">Monthly history</span></div></div>
+      <div class="product-shell">
+        <div class="product-header"><div class="product-brand"><img src="logo.svg" alt=""><div><strong>Actor Analytics</strong><small>by MintAPI</small></div></div><div class="header-actions"><i></i><i></i><i></i></div></div>
+        <div class="product-content">
+          <div class="period-row"><div><small>DAILY EARNINGS</small><strong>September 2026</strong></div><div class="filters"><span class="filter">Revenue</span><span class="filter">All Actors</span></div></div>
+          <div class="tabs"><span>Overview</span><span class="active">Daily earnings</span><span>Run activity</span><span>Users</span><span>Actors</span></div>
+          <div class="kpis"><div class="kpi blue"><span>Total revenue</span><strong>$3,402</strong><small>Selected Actors</small></div><div class="kpi green"><span>Leading Actor</span><strong>39.6%</strong><small>X Advanced Search</small></div><div class="kpi orange"><span>Peak day</span><strong>$386</strong><small>September 13</small></div><div class="kpi"><span>Top 3 share</span><strong>70.1%</strong><small>Portfolio concentration</small></div></div>
+          <div class="panel stack-card"><div class="panel-title"><strong>Daily revenue by Actor</strong><small>Hover any day for the full ranked breakdown</small></div><div class="bars"><div class="bar" style="--h:43%"><i style="--s:43%"></i><i style="--s:23%"></i><i style="--s:17%"></i><i style="--s:10%"></i><i style="--s:7%"></i></div><div class="bar" style="--h:38%"><i style="--s:38%"></i><i style="--s:28%"></i><i style="--s:14%"></i><i style="--s:12%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:67%"><i style="--s:52%"></i><i style="--s:18%"></i><i style="--s:14%"></i><i style="--s:9%"></i><i style="--s:7%"></i></div><div class="bar" style="--h:51%"><i style="--s:40%"></i><i style="--s:24%"></i><i style="--s:16%"></i><i style="--s:12%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:29%"><i style="--s:31%"></i><i style="--s:30%"></i><i style="--s:19%"></i><i style="--s:12%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:34%"><i style="--s:46%"></i><i style="--s:20%"></i><i style="--s:14%"></i><i style="--s:12%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:48%"><i style="--s:42%"></i><i style="--s:25%"></i><i style="--s:15%"></i><i style="--s:10%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:61%"><i style="--s:49%"></i><i style="--s:21%"></i><i style="--s:13%"></i><i style="--s:10%"></i><i style="--s:7%"></i></div><div class="bar" style="--h:53%"><i style="--s:37%"></i><i style="--s:29%"></i><i style="--s:16%"></i><i style="--s:10%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:42%"><i style="--s:44%"></i><i style="--s:22%"></i><i style="--s:17%"></i><i style="--s:10%"></i><i style="--s:7%"></i></div><div class="bar" style="--h:39%"><i style="--s:35%"></i><i style="--s:27%"></i><i style="--s:18%"></i><i style="--s:12%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:31%"><i style="--s:30%"></i><i style="--s:28%"></i><i style="--s:22%"></i><i style="--s:12%"></i><i style="--s:8%"></i></div><div class="bar" style="--h:96%"><i style="--s:58%"></i><i style="--s:17%"></i><i style="--s:11%"></i><i style="--s:8%"></i><i style="--s:6%"></i></div><div class="bar" style="--h:58%"><i style="--s:39%"></i><i style="--s:26%"></i><i style="--s:17%"></i><i style="--s:11%"></i><i style="--s:7%"></i></div><div class="bar" style="--h:44%"><i style="--s:42%"></i><i style="--s:23%"></i><i style="--s:17%"></i><i style="--s:10%"></i><i style="--s:8%"></i></div></div><div class="bar-labels"><span>Sep 1</span><span>Sep 4</span><span>Sep 7</span><span>Sep 10</span><span>Sep 13</span><span>Sep 16</span></div></div>
+          <div class="tooltip-card"><strong>September 13</strong><span>$386.42 total revenue</span><div class="tooltip-row"><i style="background:#2068f8"></i><span>X Advanced Search</span><b>$224.13</b></div><div class="tooltip-row"><i style="background:#20a048"></i><span>Yelp Ultimate</span><b>$65.69</b></div><div class="tooltip-row"><i style="background:#f86000"></i><span>YouTube Search</span><b>$42.51</b></div><div class="tooltip-row"><i style="background:#8b67e8"></i><span>Video Downloader</span><b>$30.91</b></div><div class="tooltip-row"><i style="background:#d94c5c"></i><span>Other Actors</span><b>$23.18</b></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="asset screenshot" data-asset="screenshot-health">
+      <div class="brand"><img src="logo.svg" alt=""><div class="brand-copy"><strong>Actor Analytics for Apify</strong><span>by MintAPI</span></div></div>
+      <div class="hero-copy"><span class="eyebrow">Run reliability</span><h1>Catch broken Actors sooner.</h1><p>Trace failed, aborted, and timed-out runs back to the Actor and day that needs attention.</p><div class="chips"><span class="chip">Failures</span><span class="chip">Timeouts</span><span class="chip">Results</span></div></div>
+      <div class="product-shell">
+        <div class="product-header"><div class="product-brand"><img src="logo.svg" alt=""><div><strong>Actor Analytics</strong><small>by MintAPI</small></div></div><div class="header-actions"><i></i><i></i><i></i></div></div>
+        <div class="product-content">
+          <div class="period-row"><div><small>RUN ACTIVITY</small><strong>September 2026</strong></div><div class="filters"><span class="filter">Failed</span><span class="filter">All Actors</span></div></div>
+          <div class="tabs"><span>Overview</span><span>Daily earnings</span><span class="active">Run activity</span><span>Users</span><span>Actors</span></div>
+          <div class="kpis"><div class="kpi"><span>Failed runs</span><strong>1,634</strong><small>Across selected Actors</small></div><div class="kpi green"><span>Success rate</span><strong>98.4%</strong><small>Portfolio reliability</small></div><div class="kpi orange"><span>Actors affected</span><strong>9</strong><small>With at least one failure</small></div><div class="kpi blue"><span>Results</span><strong>4.7M</strong><small>Delivered this month</small></div></div>
+          <div class="health-grid"><div class="panel"><div class="panel-title"><strong>Actors requiring attention</strong><small>Ranked by failed runs</small></div><div class="health-list"><div class="health-row"><i></i><strong>X Advanced Search</strong><span>1,534</span></div><div class="health-row"><i></i><strong>LinkedIn Profile Posts</strong><span>45</span></div><div class="health-row"><i></i><strong>Instagram Posts</strong><span>25</span></div><div class="health-row"><i></i><strong>Google Maps</strong><span>9</span></div><div class="health-row"><i></i><strong>LinkedIn Jobs</strong><span>6</span></div></div></div><div class="panel"><div class="panel-title"><strong>Failed runs by day</strong><small>Daily portfolio total</small></div><div class="run-bars"><i class="run-bar" style="--h:21%"></i><i class="run-bar" style="--h:12%"></i><i class="run-bar" style="--h:34%"></i><i class="run-bar" style="--h:18%"></i><i class="run-bar" style="--h:8%"></i><i class="run-bar" style="--h:14%"></i><i class="run-bar" style="--h:31%"></i><i class="run-bar" style="--h:23%"></i><i class="run-bar" style="--h:39%"></i><i class="run-bar" style="--h:17%"></i><i class="run-bar" style="--h:28%"></i><i class="run-bar" style="--h:15%"></i><i class="run-bar" style="--h:78%"></i><i class="run-bar" style="--h:42%"></i><i class="run-bar" style="--h:19%"></i><i class="run-bar" style="--h:29%"></i><i class="run-bar" style="--h:16%"></i><i class="run-bar" style="--h:37%"></i><i class="run-bar" style="--h:22%"></i><i class="run-bar" style="--h:12%"></i></div><div class="bar-labels"><span>Sep 1</span><span>Sep 5</span><span>Sep 9</span><span>Sep 13</span><span>Sep 17</span><span>Sep 21</span></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="asset small" data-asset="small-promo">
+      <div class="brand"><img src="logo.svg" alt=""><div class="brand-copy"><strong>Actor Analytics</strong><span>for Apify · by MintAPI</span></div></div>
+      <h2>Know what drives every Actor.</h2>
+      <div class="accent-line"></div>
+      <div class="mini-bars"><i style="--h:38%"></i><i style="--h:62%"></i><i style="--h:49%"></i><i style="--h:84%"></i><i style="--h:58%"></i><i style="--h:100%"></i><i style="--h:71%"></i></div>
+    </section>
+
+    <section class="asset marquee" data-asset="marquee-promo">
+      <div class="brand"><img src="logo.svg" alt=""><div class="brand-copy"><strong>Actor Analytics for Apify</strong><span>by MintAPI</span></div></div>
+      <div class="marquee-copy"><h1>Your Actor portfolio, finally in focus.</h1><p>Revenue, reliability, users, quality, and acquisition in one private workspace.</p><div class="chips"><span class="chip">Daily breakdowns</span><span class="chip">Actor trends</span><span class="chip">No telemetry</span></div></div>
+      <div class="product-shell">
+        <div class="product-header"><div class="product-brand"><img src="logo.svg" alt=""><div><strong>Actor Analytics</strong><small>by MintAPI</small></div></div><div class="header-actions"><i></i><i></i><i></i></div></div>
+        <div class="product-content"><div class="period-row"><div><small>PORTFOLIO OVERVIEW</small><strong>September 2026</strong></div><div class="filters"><span class="filter">All Actors</span></div></div><div class="kpis"><div class="kpi blue"><span>Revenue</span><strong>$3,402</strong></div><div class="kpi green"><span>Net profit</span><strong>$3,330</strong></div><div class="kpi orange"><span>Costs</span><strong>$72.47</strong></div><div class="kpi"><span>Margin</span><strong>97.9%</strong></div></div><div class="dashboard-grid"><div class="panel"><div class="panel-title"><strong>Financial performance</strong><small>Daily revenue and profit</small></div><div class="line-chart"><div class="grid-lines"><i></i><i></i><i></i><i></i></div><svg viewBox="0 0 360 150" preserveAspectRatio="none"><path class="revenue-line" d="M0 127 L28 103 L56 110 L84 62 L112 85 L140 120 L168 107 L196 76 L224 88 L252 105 L280 96 L308 26 L336 72 L360 65"/><path class="profit-line" d="M0 132 L28 108 L56 115 L84 68 L112 90 L140 124 L168 112 L196 82 L224 93 L252 110 L280 101 L308 33 L336 78 L360 72"/></svg></div></div><div class="panel"><div class="panel-title"><strong>Revenue by Actor</strong><small>Top contributors</small></div><div class="actor-list"><div class="actor-row"><strong>X Advanced Search</strong><b>$1,346</b><div class="track"><i style="width:100%"></i></div></div><div class="actor-row"><strong>Yelp Ultimate</strong><b>$752</b><div class="track"><i style="width:56%"></i></div></div><div class="actor-row"><strong>YouTube Search</strong><b>$286</b><div class="track"><i style="width:21%"></i></div></div></div></div></div></div>
+      </div>
+    </section>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const name = params.get("asset") || "screenshot-overview";
+      const selected = document.querySelector(`[data-asset="${name}"]`) || document.querySelector("[data-asset]");
+      document.querySelectorAll(".asset").forEach((element) => {
+        element.classList.toggle("active", element === selected);
+      });
+    </script>
+  </body>
+</html>
