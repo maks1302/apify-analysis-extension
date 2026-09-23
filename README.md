@@ -1,4 +1,4 @@
-# Actor Analytics for Apify
+# Actor Analytics for Apify (by MintAPI)
 
 A local-only Chrome extension that visualizes the profit-margin data already loaded by Apify Console. It does not read cookies, store authorization headers, or send analytics to another server.
 

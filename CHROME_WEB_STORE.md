@@ -1,7 +1,7 @@
 # Chrome Web Store publication guide
 
 This document contains ready-to-paste listing copy and a release checklist for
-Actor Analytics for Apify.
+Actor Analytics for Apify (by MintAPI).
 
 ## 1. Finish the extension icons
 
@@ -32,7 +32,7 @@ outer edge of the 128 px canvas.
 ### Product name
 
 ```text
-Actor Analytics for Apify
+Actor Analytics for Apify (by MintAPI)
 ```
 
 ### Summary
@@ -46,7 +46,7 @@ Advanced local analytics for Apify Actors: revenue, profit, runs, users, quality
 ```text
 Understand how your Apify Actors perform without exporting data or switching between multiple Console views.
 
-Actor Analytics for Apify adds a private analytics workspace directly to Apify Console. It organizes the analytics available to your signed-in account into clear dashboards for financial performance, run reliability, users, quality, and acquisition.
+Actor Analytics for Apify (by MintAPI) adds a private analytics workspace directly to Apify Console. It organizes the analytics available to your signed-in account into clear dashboards for financial performance, run reliability, users, quality, and acquisition.
 
 KEY FEATURES
 
@@ -214,4 +214,3 @@ In the Chrome Web Store Developer Dashboard:
 5. Preview the listing, fix all dashboard warnings, and submit for review.
 
 For every later upload, increase `version` in `manifest.json` first.
-

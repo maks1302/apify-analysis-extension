@@ -1642,7 +1642,7 @@
       <div id="ae-backdrop"></div>
       <aside id="ae-panel" aria-label="Apify earnings dashboard" aria-hidden="true">
         <header class="ae-panel-header">
-          <div class="ae-brand"><div class="ae-logo" aria-hidden="true">${LOGO_MARK}</div><div><strong>Actor Analytics</strong><span>Private workspace</span></div></div>
+          <div class="ae-brand"><div class="ae-logo" aria-hidden="true">${LOGO_MARK}</div><div><strong>Actor Analytics</strong><span>by MintAPI</span></div></div>
           <div class="ae-panel-actions">
             <div class="ae-help-wrap">
               <button id="ae-help-toggle" type="button" aria-label="Help, privacy, and contact" title="Help, privacy, and contact" aria-expanded="false" aria-controls="ae-help-popover"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M8.3 7.7a1.9 1.9 0 0 1 3.5 1c0 1.6-1.8 1.8-1.8 3M10 14.3h.01"/></svg></button>

@@ -1,8 +1,8 @@
-# Privacy Policy for Actor Analytics for Apify
+# Privacy Policy for Actor Analytics for Apify (by MintAPI)
 
 **Effective date:** September 23, 2026
 
-Actor Analytics for Apify is an independent browser extension that adds analytics
+Actor Analytics for Apify (by MintAPI) is an independent browser extension that adds analytics
 views to Apify Console. It is not affiliated with, endorsed by, or sponsored by
 Apify.
 
@@ -77,4 +77,3 @@ privacy disclosures will be updated before the changed behavior is released.
 Questions and support requests can be submitted at:
 
 https://github.com/maks1302/apify-analysis-extension/issues
-
