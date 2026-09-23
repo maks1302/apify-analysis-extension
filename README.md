@@ -29,6 +29,11 @@ full-viewport analysis workspace. The same control minimizes it back to the side
 panel. While fullscreen is active, Escape minimizes first; pressing Escape again
 closes the dashboard.
 
+The dashboard follows the active Apify Console light or dark theme and updates
+immediately when the Console theme changes. The dark workspace uses `#161718`,
+the light workspace uses `#fff`, and primary accents follow Apify blue, green,
+and orange.
+
 The Actor performance tab also includes a month-to-date revenue, profit, and cost chart plus a run
 reliability dashboard. Revenue bars are split into net profit and cost; the reliability
 dashboard ranks Actors by failed, aborted, and timed-out runs.

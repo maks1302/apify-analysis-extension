@@ -465,8 +465,8 @@
   }
 
   const actorColors = [
-    "#7c5cff", "#37d996", "#ff9f43", "#35b8ff", "#ff647c", "#e2c65a",
-    "#b277ff", "#42d6c9", "#ff7eb6", "#7196ff", "#8ed45f", "#d889ff",
+    "#2068F8", "#20A048", "#F86000", "#5B8FF9", "#D94C5C", "#D6A11D",
+    "#7856D8", "#1EA7A1", "#D95C9D", "#4D7AD9", "#70A83A", "#A55BC4",
   ];
 
   function stackedActorChart(data) {
@@ -1507,6 +1507,44 @@
     </div>`;
   }
 
+  function apifyTheme() {
+    const explicitValues = [
+      document.documentElement?.getAttribute("data-theme"),
+      document.documentElement?.getAttribute("data-color-scheme"),
+      document.body?.getAttribute("data-theme"),
+      document.body?.getAttribute("data-color-scheme"),
+      document.documentElement?.className,
+      document.body?.className,
+    ].filter((value) => typeof value === "string").join(" ").toLowerCase();
+    if (/(^|[\s_-])dark([\s_-]|$)/.test(explicitValues)) return "dark";
+    if (/(^|[\s_-])light([\s_-]|$)/.test(explicitValues)) return "light";
+
+    const themedElement = document.querySelector([
+      'body > [data-theme="dark"]', 'body > [data-color-scheme="dark"]',
+      'body > [data-theme="light"]', 'body > [data-color-scheme="light"]',
+      '#root[data-theme]', '#root[data-color-scheme]',
+      '#app[data-theme]', '#app[data-color-scheme]',
+    ].join(", "));
+    const declaredTheme = themedElement?.getAttribute("data-theme") || themedElement?.getAttribute("data-color-scheme");
+    if (declaredTheme === "dark" || declaredTheme === "light") return declaredTheme;
+
+    const backgroundElements = [document.querySelector("main"), document.body, document.documentElement].filter(Boolean);
+    for (const element of backgroundElements) {
+      const match = getComputedStyle(element).backgroundColor.match(/[\d.]+/g)?.map(Number);
+      if (!match || match.length < 3 || (match.length > 3 && match[3] < .15)) continue;
+      const [red, green, blue] = match;
+      const luminance = (.2126 * red + .7152 * green + .0722 * blue) / 255;
+      return luminance < .5 ? "dark" : "light";
+    }
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+
+  function syncApifyTheme(root = document.getElementById(UI_ID)) {
+    if (!root) return;
+    const theme = apifyTheme();
+    if (root.dataset.aeTheme !== theme) root.dataset.aeTheme = theme;
+  }
+
   function ensureUi() {
     let root = document.getElementById(UI_ID);
     if (root) return root;
@@ -1530,6 +1568,7 @@
       </aside>
       <div id="ae-bar-tooltip" role="tooltip" hidden></div>`;
     document.documentElement.appendChild(root);
+    syncApifyTheme(root);
 
     root.querySelector("#ae-launcher").addEventListener("click", () => setPanel(true));
     root.querySelector("#ae-fullscreen-toggle").addEventListener("click", () => setPanelFullscreen(!panelFullscreen));
@@ -1912,9 +1951,15 @@
       pinUpdateScheduled = true;
       window.requestAnimationFrame(() => {
         pinUpdateScheduled = false;
+        syncApifyTheme();
         ensurePinnedLauncher();
       });
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-theme", "data-color-scheme"],
+      childList: true,
+      subtree: true,
+    });
   }
 })();

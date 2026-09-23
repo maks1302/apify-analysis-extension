@@ -1,11 +1,17 @@
 #apify-earnings-extension-root {
-  --ae-bg: #0d0f12;
-  --ae-card: #15181d;
-  --ae-border: #282d35;
-  --ae-text: #f1f3f5;
-  --ae-muted: #8e96a3;
-  --ae-purple: #6f8cff;
-  --ae-green: #4fbd88;
+  --ae-bg: #161718;
+  --ae-card: #1d1f20;
+  --ae-surface: #1d1f20;
+  --ae-surface-raised: #242627;
+  --ae-surface-subtle: #191a1b;
+  --ae-border: #343637;
+  --ae-text: #f4f5f5;
+  --ae-muted: #9a9d9f;
+  --ae-orange: #F86000;
+  --ae-blue: #2068F8;
+  --ae-purple: #2068F8;
+  --ae-green: #20A048;
+  --ae-danger: #D94C5C;
   color: var(--ae-text);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   position: relative;
@@ -1622,3 +1628,329 @@
   .ae-stat-ledger-3,
   .ae-stat-ledger-4 { grid-template-columns: 1fr; }
 }
+
+/* Apify theme synchronization --------------------------------------------- */
+#apify-earnings-extension-root[data-ae-theme="dark"] {
+  --ae-bg: #161718;
+  --ae-card: #1d1f20;
+  --ae-surface: #1d1f20;
+  --ae-surface-raised: #242627;
+  --ae-surface-subtle: #191a1b;
+  --ae-border: #343637;
+  --ae-text: #f4f5f5;
+  --ae-muted: #9a9d9f;
+  --ae-header-bg: rgba(22, 23, 24, .94);
+  --ae-hover: #262829;
+  --ae-shadow: rgba(0, 0, 0, .42);
+  color-scheme: dark;
+}
+
+#apify-earnings-extension-root[data-ae-theme="light"] {
+  --ae-bg: #fff;
+  --ae-card: #fff;
+  --ae-surface: #fff;
+  --ae-surface-raised: #f5f6f7;
+  --ae-surface-subtle: #f8f9fa;
+  --ae-border: #e1e3e5;
+  --ae-text: #202223;
+  --ae-muted: #6d7277;
+  --ae-header-bg: rgba(255, 255, 255, .94);
+  --ae-hover: #f1f3f4;
+  --ae-shadow: rgba(25, 28, 31, .16);
+  color-scheme: light;
+}
+
+#apify-earnings-extension-root[data-ae-theme] { color: var(--ae-text); }
+
+#apify-earnings-extension-root[data-ae-theme] #ae-panel {
+  background: var(--ae-bg);
+  border-color: var(--ae-border);
+  box-shadow: -20px 0 64px var(--ae-shadow);
+  color: var(--ae-text);
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-panel-header {
+  background: var(--ae-header-bg);
+  border-color: var(--ae-border);
+}
+
+#apify-earnings-extension-root[data-ae-theme] #ae-launcher,
+#apify-earnings-extension-root[data-ae-theme] #ae-inline-launcher,
+#apify-earnings-extension-root[data-ae-theme] .ae-period-picker button {
+  background: var(--ae-blue);
+  border-color: transparent;
+  color: #fff;
+}
+
+#apify-earnings-extension-root[data-ae-theme] #ae-launcher {
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ae-blue) 28%, transparent);
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-logo {
+  background: var(--ae-orange);
+  border-color: transparent;
+  color: #fff;
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-eyebrow { color: var(--ae-orange); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-daily-stack-card,
+  .ae-chart-card,
+  .ae-portfolio-card,
+  .ae-health-card,
+  .ae-actor-list-card,
+  .ae-quality-list-card,
+  .ae-acquisition-list-card,
+  .ae-acquisition-insights > section,
+  .ae-overview-card,
+  .ae-overview-snapshot-grid
+) {
+  background: var(--ae-surface);
+  border-color: var(--ae-border);
+}
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-overview-summary,
+  .ae-stat-ledger,
+  .ae-run-summary.ae-stat-ledger,
+  .ae-actor-summary.ae-stat-ledger,
+  .ae-quality-summary.ae-stat-ledger,
+  .ae-tabs,
+  .ae-period-picker,
+  #ae-actor-picker-button,
+  .ae-actor-picker-menu,
+  #ae-actor-search,
+  .ae-metric-toggle,
+  .ae-run-metric-toggle,
+  .ae-user-metric-toggle,
+  .ae-health-filters,
+  .ae-chart-legend,
+  .ae-actor-legend,
+  .ae-quality-list-head,
+  .ae-acquisition-list-head,
+  .ae-health-head,
+  .ae-quality-details,
+  .ae-acquisition-details,
+  .ae-acquisition-detail-panel,
+  .ae-quality-detail-grid > div,
+  .ae-quality-feedback-grid > section,
+  .ae-quality-feedback-item,
+  .ae-quality-notice,
+  .ae-empty-icon,
+  .ae-overview-alert small
+) {
+  background: var(--ae-surface-subtle);
+  border-color: var(--ae-border);
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-summary { background-image: none; }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-overview-alert:hover,
+  .ae-overview-contributor:hover,
+  .ae-overview-mover:hover,
+  .ae-overview-snapshot:hover,
+  .ae-actor-row:hover,
+  .ae-health-row:hover,
+  .ae-quality-row-main:hover,
+  .ae-acquisition-row-main:hover,
+  .ae-picker-list label:hover
+) { background: var(--ae-hover); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-quality-row,
+  .ae-acquisition-row,
+  .ae-actor-row,
+  .ae-health-row,
+  .ae-quality-heading,
+  .ae-actor-heading,
+  .ae-tooltip-header,
+  .ae-tooltip-row,
+  .ae-tooltip-footer,
+  .ae-picker-actions
+) { border-color: var(--ae-border); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-brand strong,
+  .ae-period-row h2,
+  .ae-card-heading span,
+  .ae-stat-ledger strong,
+  .ae-overview-summary strong,
+  .ae-overview-trend-stats strong,
+  .ae-overview-actor strong,
+  .ae-overview-money strong,
+  .ae-overview-alert strong,
+  .ae-overview-snapshot > strong,
+  .ae-portfolio-name strong,
+  .ae-portfolio-values strong,
+  .ae-health-actor strong,
+  .ae-health-metric strong,
+  .ae-health-rate strong,
+  .ae-actor-identity strong,
+  .ae-actor-profit strong,
+  .ae-actor-stat strong,
+  .ae-quality-identity strong,
+  .ae-quality-metric strong,
+  .ae-acquisition-metric strong,
+  .ae-acquisition-bar-row strong,
+  .ae-acquisition-detail-title strong,
+  .ae-acquisition-detail-row strong,
+  .ae-quality-detail-grid strong,
+  .ae-quality-feedback-title strong,
+  .ae-quality-feedback-item strong,
+  .ae-tooltip-header strong,
+  .ae-tooltip-row strong,
+  .ae-tooltip-row b,
+  .ae-pulse-tooltip-grid strong,
+  .ae-empty h2,
+  .ae-run-empty strong,
+  .ae-overview-clear strong
+) { color: var(--ae-text); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  small,
+  .ae-muted,
+  .ae-brand span,
+  .ae-card-heading small,
+  .ae-stat-ledger article > span,
+  .ae-overview-summary article > span,
+  .ae-overview-summary-primary > span,
+  .ae-overview-trend-stats span,
+  .ae-overview-trend-stats small,
+  .ae-overview-actor span,
+  .ae-overview-alert span:not(.ae-overview-alert-dot),
+  .ae-overview-snapshot > span,
+  .ae-overview-snapshot > div:last-child,
+  .ae-portfolio-name span,
+  .ae-health-actor span:not(.ae-health-dot),
+  .ae-health-metric span,
+  .ae-health-rate span,
+  .ae-actor-identity span,
+  .ae-actor-profit span,
+  .ae-actor-stat span,
+  .ae-quality-identity span,
+  .ae-quality-metric span,
+  .ae-acquisition-metric span,
+  .ae-acquisition-bar-row > span,
+  .ae-acquisition-detail-title span,
+  .ae-acquisition-detail-row > span,
+  .ae-quality-description,
+  .ae-quality-detail-grid span,
+  .ae-quality-feedback-item p,
+  .ae-quality-feedback-empty,
+  .ae-acquisition-empty,
+  .ae-acquisition-footnote,
+  .ae-chart-note,
+  .ae-stack-axis-title,
+  .ae-tooltip-columns,
+  .ae-tooltip-footer,
+  .ae-pulse-tooltip-grid span,
+  .ae-pulse-tooltip-grid small,
+  .ae-picker-list small
+) { color: var(--ae-muted); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-period-picker select,
+  #ae-actor-picker-button,
+  #ae-actor-search,
+  .ae-picker-list span
+) { color: var(--ae-text); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-period-picker,
+  #ae-actor-picker-button,
+  .ae-actor-picker-menu,
+  #ae-actor-search,
+  .ae-tabs,
+  .ae-metric-toggle,
+  .ae-run-metric-toggle,
+  .ae-user-metric-toggle,
+  .ae-health-filters
+) { border-color: var(--ae-border); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-tabs button.ae-active,
+  .ae-metric-toggle button.ae-active,
+  .ae-run-metric-toggle button.ae-active,
+  .ae-user-metric-toggle button.ae-active,
+  .ae-health-filters button.ae-active
+) {
+  background: var(--ae-blue);
+  box-shadow: none;
+  color: #fff;
+}
+
+#apify-earnings-extension-root[data-ae-theme] :is(
+  .ae-tabs button:hover,
+  .ae-metric-toggle button:hover,
+  .ae-run-metric-toggle button:hover,
+  .ae-user-metric-toggle button:hover,
+  .ae-health-filters button:hover,
+  #ae-fullscreen-toggle:hover,
+  #ae-close:hover
+) { background: var(--ae-hover); color: var(--ae-text); }
+
+#apify-earnings-extension-root[data-ae-theme] .ae-tabs button.ae-active:hover { background: var(--ae-blue); color: #fff; }
+#apify-earnings-extension-root[data-ae-theme] .ae-tabs button.ae-active span { color: #dfe9ff; }
+#apify-earnings-extension-root[data-ae-theme] .ae-picker-list input { accent-color: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] :is(.ae-overview-card .ae-card-heading > button, .ae-overview-snapshot button, .ae-picker-actions button, .ae-quality-heading > button) { color: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-quality-feedback-item a { color: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-quality-heading > button {
+  background: var(--ae-surface-raised);
+  border-color: var(--ae-border);
+}
+#apify-earnings-extension-root[data-ae-theme] .ae-quality-heading > button:hover { background: var(--ae-hover); color: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] :is(.ae-quality-check, .ae-quality-category, .ae-actor-avatar, .ae-actor-pricing) { border-color: var(--ae-border); }
+
+#apify-earnings-extension-root[data-ae-theme] .ae-up,
+#apify-earnings-extension-root[data-ae-theme] .ae-quality-good strong,
+#apify-earnings-extension-root[data-ae-theme] .ae-acquisition-runs strong,
+#apify-earnings-extension-root[data-ae-theme] .ae-portfolio-values span { color: var(--ae-green) !important; }
+#apify-earnings-extension-root[data-ae-theme] .ae-down,
+#apify-earnings-extension-root[data-ae-theme] .ae-health-failed strong { color: var(--ae-danger) !important; }
+
+#apify-earnings-extension-root[data-ae-theme] .ae-line-revenue,
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-spark-revenue { stroke: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-line-profit,
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-spark-profit { stroke: var(--ae-green); }
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-pulse-point.ae-revenue-point { fill: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-pulse-point.ae-profit-point { fill: var(--ae-green); }
+#apify-earnings-extension-root[data-ae-theme] .ae-profit-segment { background: var(--ae-green); }
+#apify-earnings-extension-root[data-ae-theme] .ae-cost-segment,
+#apify-earnings-extension-root[data-ae-theme] .ae-legend .ae-orange { background: var(--ae-orange); }
+#apify-earnings-extension-root[data-ae-theme] .ae-legend .ae-purple { background: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-legend .ae-green { background: var(--ae-green); }
+#apify-earnings-extension-root[data-ae-theme] :is(.ae-actor-profit i, .ae-progress > span, .ae-load-progress i, .ae-acquisition-detail-row i) { background: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-share i,
+#apify-earnings-extension-root[data-ae-theme] .ae-acquisition-track i { background: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme] .ae-acquisition-detail-panel:nth-child(2) .ae-acquisition-detail-row i { background: var(--ae-green); }
+#apify-earnings-extension-root[data-ae-theme] .ae-acquisition-insights > section:nth-child(2) .ae-acquisition-track i { background: var(--ae-green); }
+
+#apify-earnings-extension-root[data-ae-theme] :is(.ae-guide, .ae-overview-spark-base) { stroke: var(--ae-border); }
+#apify-earnings-extension-root[data-ae-theme] :is(.ae-stack-tick, .ae-stack-date) { fill: var(--ae-muted); }
+#apify-earnings-extension-root[data-ae-theme] :is(.ae-portfolio-track, .ae-progress, .ae-actor-profit > div, .ae-acquisition-detail-row > div, .ae-overview-share) { background: var(--ae-surface-raised); }
+
+#apify-earnings-extension-root[data-ae-theme] #ae-bar-tooltip {
+  background: var(--ae-surface-raised);
+  border-color: var(--ae-border);
+  box-shadow: 0 18px 55px var(--ae-shadow);
+  color: var(--ae-text);
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-pulse-tooltip-grid > div { background: var(--ae-surface); }
+
+#apify-earnings-extension-root[data-ae-theme="light"] #ae-backdrop { background: rgba(24, 27, 30, .24); }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-overview-pulse-point { stroke: #fff; }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-actor-avatar { background: #f1f3f4; border-color: var(--ae-border); }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-overview-alert-dot.ae-warning { background: var(--ae-orange); }
+#apify-earnings-extension-root[data-ae-theme="light"] :is(.ae-health-icon, .ae-overview-clear > span, .ae-quality-feedback-icon.ae-praise) { background: #e8f6ee; color: var(--ae-green); }
+#apify-earnings-extension-root[data-ae-theme="light"] :is(.ae-acquisition-icon) { background: #eaf1ff; color: var(--ae-blue); }
+#apify-earnings-extension-root[data-ae-theme="light"] :is(.ae-quality-icon, .ae-quality-feedback-icon.ae-improve) { background: #fff1e8; color: var(--ae-orange); }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-check.ae-pass { background: #e8f6ee; border-color: #b9dfc8; color: #187c43; }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-check.ae-pass i { background: #ccead7; color: #126b39; }
+#apify-earnings-extension-root[data-ae-theme="light"] :is(.ae-quality-check.ae-missing, .ae-quality-category-alert) { background: #fff0f1; border-color: #f0c6ca; color: #b63b49; }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-check.ae-missing i { background: #f7d9dc; color: #a82f3c; }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-actor-pricing { background: #e8f6ee; border-color: #c3e4cf; color: #187c43; }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-metric.ae-quality-medium strong { color: #a65b00; }
+#apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-metric.ae-quality-low strong { color: var(--ae-danger); }
