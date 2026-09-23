@@ -431,7 +431,7 @@
   width: 30px;
 }
 
-.ae-logo .ae-product-logo { height: 20px; object-fit: contain; width: 20px; }
+.ae-logo .ae-product-logo { height: 25px; object-fit: contain; width: 25px; }
 
 .ae-panel-actions { align-items: center; display: flex; gap: 4px; }
 
