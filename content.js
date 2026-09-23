@@ -27,6 +27,24 @@
   const qualityLoadStatus = {};
   const marketingLoadStatus = {};
   const monthLoadStatus = {};
+  let backgroundRenderTimer = null;
+  let backgroundRenderPending = false;
+  let dashboardPointerActive = false;
+
+  function scheduleRender() {
+    backgroundRenderPending = true;
+    if (backgroundRenderTimer !== null) return;
+    backgroundRenderTimer = window.setTimeout(() => {
+      backgroundRenderTimer = null;
+      if (dashboardPointerActive) {
+        scheduleRender();
+        return;
+      }
+      if (!backgroundRenderPending) return;
+      backgroundRenderPending = false;
+      render();
+    }, 100);
+  }
 
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
   const money = (value) => new Intl.NumberFormat("en-US", {
@@ -230,7 +248,7 @@
     if (!quality?.id) return;
     actorQuality[quality.id] = quality;
     await chrome.storage.local.set({ [QUALITY_STORAGE_KEY]: actorQuality });
-    render();
+    scheduleRender();
   }
 
   function normalizeActorBreakdown(payload, requestedMonth) {
@@ -284,7 +302,7 @@
     months[monthData.month] = { ...months[monthData.month], ...monthData };
     if (!background && comparisonMonthRequest?.target !== monthData.month) selectedMonth = monthData.month;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
-    render();
+    scheduleRender();
   }
 
   async function saveActorBreakdown(breakdown, { background = false } = {}) {
@@ -301,7 +319,7 @@
     if (activeView === "acquisition") {
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: breakdown.month }, window.location.origin);
     }
-    render();
+    scheduleRender();
   }
 
   function normalizeActorDaily(payload) {
@@ -322,9 +340,8 @@
       month: key,
       actorDaily: { ...(months[key]?.actorDaily || {}), [actorId]: daily },
     };
-    selectedMonth = key;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
-    render();
+    scheduleRender();
   }
 
   function normalizeActorRunDaily(payload) {
@@ -353,9 +370,8 @@
       month: key,
       actorRunDaily: { ...(months[key]?.actorRunDaily || {}), [actorId]: daily },
     };
-    selectedMonth = key;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
-    render();
+    scheduleRender();
   }
 
   function normalizeActorUserDaily(payload) {
@@ -380,9 +396,8 @@
       month: key,
       actorUserDaily: { ...(months[key]?.actorUserDaily || {}), [actorId]: daily },
     };
-    selectedMonth = key;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
-    render();
+    scheduleRender();
   }
 
   function normalizeActorMarketing(payload, actorId, error) {
@@ -416,9 +431,8 @@
       month: key,
       actorMarketing: { ...(months[key]?.actorMarketing || {}), [actorId]: marketing },
     };
-    selectedMonth = key;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
-    render();
+    scheduleRender();
   }
 
   function overviewForSelection(data) {
@@ -1635,6 +1649,23 @@
     root.querySelector("#ae-fullscreen-toggle").addEventListener("click", () => setPanelFullscreen(!panelFullscreen));
     root.querySelector("#ae-close").addEventListener("click", () => setPanel(false));
     root.querySelector("#ae-backdrop").addEventListener("click", () => setPanel(false));
+    const panelContent = root.querySelector("#ae-panel-content");
+    panelContent.addEventListener("pointerdown", () => {
+      dashboardPointerActive = true;
+    }, true);
+    const releaseDashboardPointer = () => {
+      window.setTimeout(() => {
+        dashboardPointerActive = false;
+      }, 0);
+    };
+    window.addEventListener("pointerup", releaseDashboardPointer, true);
+    window.addEventListener("pointercancel", releaseDashboardPointer, true);
+    panelContent.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const control = event.target.closest("[data-ae-view], [data-ae-go-to]");
+      if (!control || !panelContent.contains(control)) return;
+      activateDashboardView(control.dataset.aeView || control.dataset.aeGoTo);
+    });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !panelOpen) return;
       if (panelFullscreen) setPanelFullscreen(false);
@@ -1692,6 +1723,22 @@
   function setPanelFullscreen(fullscreen) {
     panelFullscreen = Boolean(fullscreen);
     updateFullscreenControl(ensureUi());
+  }
+
+  function activateDashboardView(view) {
+    if (!["overview", "daily", "runs", "users", "actors", "quality", "acquisition"].includes(view)) return;
+    activeView = view;
+    actorPickerOpen = false;
+    const data = selectedMonth ? months[selectedMonth] : null;
+    if (view === "quality") {
+      const needsQuality = (data?.actorBreakdown?.actors || []).some((actor) => !actorQuality[actor.id]);
+      if (needsQuality) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
+    }
+    if (view === "acquisition") {
+      const needsMarketing = (data?.actorBreakdown?.actors || []).some((actor) => !data?.actorMarketing?.[actor.id]);
+      if (needsMarketing) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
+    }
+    render();
   }
 
   function positionBarTooltip(event, tooltip) {
@@ -1752,6 +1799,11 @@
   }
 
   function render() {
+    backgroundRenderPending = false;
+    if (backgroundRenderTimer !== null) {
+      window.clearTimeout(backgroundRenderTimer);
+      backgroundRenderTimer = null;
+    }
     const root = ensureUi();
     if (!root) return;
     const keys = Object.keys(months).sort();
@@ -1828,24 +1880,6 @@
       content.querySelectorAll("[data-ae-actor-label]").forEach((label) => {
         label.hidden = Boolean(query) && !label.dataset.aeActorLabel.includes(query);
       });
-    });
-    const activateView = (view) => {
-      activeView = view;
-      if (activeView === "quality") {
-          const needsQuality = (data?.actorBreakdown?.actors || []).some((actor) => !actorQuality[actor.id]);
-          if (needsQuality) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
-      }
-      if (activeView === "acquisition") {
-          const needsMarketing = (data?.actorBreakdown?.actors || []).some((actor) => !data?.actorMarketing?.[actor.id]);
-          if (needsMarketing) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
-      }
-      render();
-    };
-    content.querySelectorAll("[data-ae-view]").forEach((button) => {
-      button.addEventListener("click", () => activateView(button.dataset.aeView));
-    });
-    content.querySelectorAll("[data-ae-go-to]").forEach((button) => {
-      button.addEventListener("click", () => activateView(button.dataset.aeGoTo));
     });
     content.querySelector("[data-ae-quality-refresh]")?.addEventListener("click", () => {
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
@@ -1942,7 +1976,7 @@
           total: number(event.data.total),
           message: String(event.data.message || ""),
         };
-        render();
+        scheduleRender();
       }
     } else if (event.data?.type === "ACTOR_RUN_DAILY_DATA") {
       const daily = normalizeActorRunDaily(event.data.payload);
@@ -1956,7 +1990,7 @@
           total: number(event.data.total),
           message: String(event.data.message || ""),
         };
-        render();
+        scheduleRender();
       }
     } else if (event.data?.type === "ACTOR_USER_DAILY_DATA") {
       const daily = normalizeActorUserDaily(event.data.payload);
@@ -1970,7 +2004,7 @@
           total: number(event.data.total),
           message: String(event.data.message || ""),
         };
-        render();
+        scheduleRender();
       }
     } else if (event.data?.type === "ACTOR_QUALITY_DATA") {
       const quality = normalizeActorQuality(event.data.payload, event.data.actorId);
@@ -1984,7 +2018,7 @@
           total: number(event.data.total),
           message: String(event.data.message || ""),
         };
-        render();
+        scheduleRender();
       }
     } else if (event.data?.type === "ACTOR_MARKETING_DATA") {
       const marketing = normalizeActorMarketing(event.data.payload, event.data.actorId, event.data.error);
@@ -1999,7 +2033,7 @@
           failed: number(event.data.failed),
           message: String(event.data.message || ""),
         };
-        render();
+        scheduleRender();
       }
     } else if (event.data?.type === "MONTH_LOAD_STATUS") {
       const key = String(event.data.month || "").slice(0, 7);
@@ -2017,7 +2051,7 @@
           selectedMonth = key;
           pendingMonth = null;
         }
-        render();
+        scheduleRender();
       }
     }
   });

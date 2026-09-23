@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apify Earnings Dashboard",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "A local dashboard for visualizing earnings data already loaded by Apify Console.",
   "minimum_chrome_version": "111",
   "permissions": ["storage"],
