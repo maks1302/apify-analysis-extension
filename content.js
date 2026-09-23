@@ -1331,12 +1331,19 @@
     const readinessGaps = qualities.reduce((sum, item) => sum + [item.hasInputSchema, item.hasOutputSchema, item.hasReadme].filter((value) => !value).length, 0);
 
     return `<div class="ae-command-overview">
-      <div class="ae-kpis ae-command-kpis">
-        <article class="ae-kpi ae-kpi-primary"><span>Revenue</span><strong>${money(overviewData.total.revenueUsd)}</strong>${trend(revenueChange)}</article>
-        <article class="ae-kpi"><span>Net profit</span><strong>${money(overviewData.total.profitUsd)}</strong>${trend(profitChange)}</article>
-        <article class="ae-kpi"><span>Margin</span><strong>${percent(overviewData.total.margin)}</strong><small>${money(overviewData.total.costUsd)} in costs</small></article>
-        <article class="ae-kpi"><span>${isCurrentMonth ? "Projected revenue" : "Final revenue"}</span><strong>${money(pacedRevenue)}</strong><small>${isCurrentMonth ? `${reportedDay} of ${daysInMonth} days reported` : `${overviewData.daily.length} reported days`}</small></article>
-      </div>
+      <section class="ae-overview-summary">
+        <div class="ae-overview-summary-primary">
+          <span>Portfolio revenue</span>
+          <strong>${money(overviewData.total.revenueUsd)}</strong>
+          ${trend(revenueChange)}
+        </div>
+        <div class="ae-overview-summary-metrics">
+          <article><span>Net profit</span><strong>${money(overviewData.total.profitUsd)}</strong>${trend(profitChange)}</article>
+          <article><span>Profit margin</span><strong>${percent(overviewData.total.margin)}</strong><small>After platform and run costs</small></article>
+          <article><span>Operating cost</span><strong>${money(overviewData.total.costUsd)}</strong><small>${percent(overviewData.total.revenueUsd ? overviewData.total.costUsd / overviewData.total.revenueUsd : 0)} of revenue</small></article>
+          <article><span>${isCurrentMonth ? "Revenue forecast" : "Final revenue"}</span><strong>${money(pacedRevenue)}</strong><small>${isCurrentMonth ? `${reportedDay} of ${daysInMonth} days reported` : `${overviewData.daily.length} reported days`}</small></article>
+        </div>
+      </section>
 
       <div class="ae-overview-primary-grid">
         <section class="ae-overview-card ae-overview-trend-card">
