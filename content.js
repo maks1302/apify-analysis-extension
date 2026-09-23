@@ -904,12 +904,18 @@
         </div>
         ${quality.description ? `<p class="ae-quality-description">${escapeHtml(quality.description)}</p>` : ""}
         <div class="ae-quality-detail-grid">
-          <div><span>Total runs</span><strong>${integer(quality.totalRuns)}</strong><small>${integer(quality.runs30Days.total)} in the last 30 days</small></div>
-          <div><span>Total builds</span><strong>${integer(quality.totalBuilds)}</strong><small>Created ${escapeHtml(dateLabel(quality.createdAt))}</small></div>
-          <div><span>Users · 7 / 30 / 90d</span><strong>${integer(quality.users7Days)} / ${integer(quality.users30Days)} / ${integer(quality.users90Days)}</strong><small>${integer(quality.totalUsers)} lifetime users</small></div>
-          <div><span>Last run</span><strong>${escapeHtml(dateLabel(quality.lastRunStartedAt))}</strong><small>Published ${escapeHtml(dateLabel(quality.firstPublishedAt))}</small></div>
-          <div><span>30d failures</span><strong>${integer(quality.runs30Days.failed)}</strong><small>${integer(quality.runs30Days.aborted)} aborted · ${integer(quality.runs30Days.timedOut)} timed out</small></div>
-          <div><span>Issue response</span><strong>${quality.issueResponseTimeDays == null ? "—" : `${quality.issueResponseTimeDays.toFixed(1)}d`}</strong><small>${quality.errors.length ? `${quality.errors.length} source request unavailable` : "All quality sources loaded"}</small></div>
+          <section class="ae-quality-fact-section">
+            <header><div><strong>Adoption &amp; delivery</strong><small>Lifetime scale and recent usage</small></div></header>
+            <div class="ae-quality-fact-row"><span>Total runs</span><div><strong>${integer(quality.totalRuns)}</strong><small>${integer(quality.runs30Days.total)} in the last 30 days</small></div></div>
+            <div class="ae-quality-fact-row"><span>Active users</span><div><strong>${integer(quality.users7Days)} / ${integer(quality.users30Days)} / ${integer(quality.users90Days)}</strong><small>7 / 30 / 90 days · ${integer(quality.totalUsers)} lifetime</small></div></div>
+            <div class="ae-quality-fact-row"><span>Build history</span><div><strong>${integer(quality.totalBuilds)} builds</strong><small>Created ${escapeHtml(dateLabel(quality.createdAt))}</small></div></div>
+          </section>
+          <section class="ae-quality-fact-section">
+            <header><div><strong>Operations</strong><small>Freshness, reliability, and support</small></div></header>
+            <div class="ae-quality-fact-row"><span>Last activity</span><div><strong>${escapeHtml(dateLabel(quality.lastRunStartedAt))}</strong><small>Published ${escapeHtml(dateLabel(quality.firstPublishedAt))}</small></div></div>
+            <div class="ae-quality-fact-row"><span>30-day issues</span><div><strong>${integer(quality.runs30Days.failed)} failed</strong><small>${integer(quality.runs30Days.aborted)} aborted · ${integer(quality.runs30Days.timedOut)} timed out</small></div></div>
+            <div class="ae-quality-fact-row"><span>Issue response</span><div><strong>${quality.issueResponseTimeDays == null ? "—" : `${quality.issueResponseTimeDays.toFixed(1)}d`}</strong><small>${quality.errors.length ? `${quality.errors.length} source request unavailable` : "All quality sources loaded"}</small></div></div>
+          </section>
         </div>
         <div class="ae-quality-feedback-grid">
           <section>
