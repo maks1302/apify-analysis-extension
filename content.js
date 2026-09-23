@@ -6,6 +6,7 @@
   const QUALITY_STORAGE_KEY = "apifyActorQuality";
   const UI_ID = "apify-earnings-extension-root";
   const SUPPORT_URL = "https://github.com/maks1302/apify-analysis-extension/issues";
+  const LOGO_MARK = `<img class="ae-product-logo" src="${chrome.runtime.getURL("logo.svg")}" alt="" aria-hidden="true" />`;
   let months = {};
   let actorQuality = {};
   let selectedMonth = null;
@@ -1636,12 +1637,12 @@
     root = document.createElement("div");
     root.id = UI_ID;
     root.innerHTML = `<button id="ae-launcher" type="button" aria-label="Open Apify earnings dashboard">
-        <span class="ae-launcher-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 11.5 6 8l2.2 2.2L13.5 5"/><path d="M9.5 5h4v4"/></svg></span><span id="ae-launcher-label">Earnings</span>
+        <span class="ae-launcher-icon" aria-hidden="true">${LOGO_MARK}</span><span id="ae-launcher-label">Analytics</span>
       </button>
       <div id="ae-backdrop"></div>
       <aside id="ae-panel" aria-label="Apify earnings dashboard" aria-hidden="true">
         <header class="ae-panel-header">
-          <div class="ae-brand"><div class="ae-logo" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3 13.5V9.75M7 13.5V5.75M11 13.5V8M15 13.5V3.5"/></svg></div><div><strong>Actor Analytics</strong><span>Private workspace</span></div></div>
+          <div class="ae-brand"><div class="ae-logo" aria-hidden="true">${LOGO_MARK}</div><div><strong>Actor Analytics</strong><span>Private workspace</span></div></div>
           <div class="ae-panel-actions">
             <div class="ae-help-wrap">
               <button id="ae-help-toggle" type="button" aria-label="Help, privacy, and contact" title="Help, privacy, and contact" aria-expanded="false" aria-controls="ae-help-popover"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M8.3 7.7a1.9 1.9 0 0 1 3.5 1c0 1.6-1.8 1.8-1.8 3M10 14.3h.01"/></svg></button>
@@ -1739,7 +1740,7 @@
       launcher.type = "button";
       launcher.setAttribute("aria-label", "Open advanced Actor analytics");
       launcher.title = "Open advanced Actor analytics";
-      launcher.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2.3 2.2 4.45 4.91.72-3.55 3.46.84 4.89L10 13.5l-4.4 2.32.84-4.89L2.9 7.47l4.9-.72L10 2.3Z"/></svg><span>Analytics</span>';
+      launcher.innerHTML = `${LOGO_MARK}<span>Analytics</span>`;
       launcher.addEventListener("click", () => setPanel(true));
       header.appendChild(launcher);
     }

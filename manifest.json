@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Apify Earnings Dashboard",
-  "version": "0.25.1",
-  "description": "A local dashboard for visualizing earnings data already loaded by Apify Console.",
+  "name": "Actor Analytics for Apify",
+  "version": "0.26.1",
+  "description": "Advanced local analytics for Apify Actors: revenue, profit, runs, users, quality, and acquisition in one dashboard.",
   "minimum_chrome_version": "111",
   "permissions": ["storage"],
   "content_scripts": [
@@ -17,6 +17,12 @@
       "js": ["content.js"],
       "css": ["styles.css"],
       "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["logo.svg"],
+      "matches": ["https://console.apify.com/*"]
     }
   ]
 }

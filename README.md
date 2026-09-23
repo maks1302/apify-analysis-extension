@@ -1,6 +1,9 @@
-# Apify Earnings Dashboard — MVP
+# Actor Analytics for Apify
 
 A local-only Chrome extension that visualizes the profit-margin data already loaded by Apify Console. It does not read cookies, store authorization headers, or send analytics to another server.
+
+Preparing a release? See the [Chrome Web Store publication guide](CHROME_WEB_STORE.md)
+and the public [privacy policy](PRIVACY.md).
 
 ## Install locally
 
