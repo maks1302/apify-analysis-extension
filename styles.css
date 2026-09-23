@@ -1954,3 +1954,22 @@
 #apify-earnings-extension-root[data-ae-theme="light"] .ae-actor-pricing { background: #e8f6ee; border-color: #c3e4cf; color: #187c43; }
 #apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-metric.ae-quality-medium strong { color: #a65b00; }
 #apify-earnings-extension-root[data-ae-theme="light"] .ae-quality-metric.ae-quality-low strong { color: var(--ae-danger); }
+
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-card .ae-card-heading > .ae-comparison-load {
+  background: var(--ae-blue);
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-card .ae-card-heading > .ae-comparison-load:hover {
+  background: color-mix(in srgb, var(--ae-blue) 88%, #000);
+  color: #fff;
+}
+
+#apify-earnings-extension-root[data-ae-theme] .ae-overview-card .ae-card-heading > .ae-comparison-load:disabled {
+  cursor: wait;
+  opacity: .62;
+}

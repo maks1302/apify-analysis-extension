@@ -20,6 +20,7 @@
   const expandedQualityActorIds = new Set();
   const expandedMarketingActorIds = new Set();
   let pendingMonth = null;
+  let comparisonMonthRequest = null;
   const dailyLoadStatus = {};
   const runLoadStatus = {};
   const userLoadStatus = {};
@@ -52,6 +53,13 @@
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+  }
+
+  function offsetMonth(month, offset) {
+    const match = String(month || "").match(/^(\d{4})-(\d{2})$/);
+    if (!match) return "";
+    const date = new Date(Number(match[1]), Number(match[2]) - 1 + offset, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   }
 
   function dateIsVisibleForMonth(date, month) {
@@ -272,20 +280,20 @@
     };
   }
 
-  async function saveProfitMonth(monthData) {
+  async function saveProfitMonth(monthData, { background = false } = {}) {
     months[monthData.month] = { ...months[monthData.month], ...monthData };
-    selectedMonth = monthData.month;
+    if (!background && comparisonMonthRequest?.target !== monthData.month) selectedMonth = monthData.month;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
     render();
   }
 
-  async function saveActorBreakdown(breakdown) {
+  async function saveActorBreakdown(breakdown, { background = false } = {}) {
     months[breakdown.month] = {
       ...months[breakdown.month],
       month: breakdown.month,
       actorBreakdown: breakdown,
     };
-    selectedMonth = breakdown.month;
+    if (!background && comparisonMonthRequest?.target !== breakdown.month) selectedMonth = breakdown.month;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
     if (activeView === "quality") {
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: breakdown.month }, window.location.origin);
@@ -1240,6 +1248,9 @@
 
   function commandOverviewMarkup(data, overviewData, previous) {
     const actors = selectedActors(data);
+    const comparisonMonth = offsetMonth(data.month, -1);
+    const comparisonState = monthLoadStatus[comparisonMonth];
+    const comparisonLabel = new Date(`${comparisonMonth}-02T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
     const previousActors = new Map((previous?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
     const [year, monthNumber] = data.month.split("-").map(Number);
     const daysInMonth = new Date(year, monthNumber, 0).getDate();
@@ -1302,7 +1313,11 @@
         <strong class="${tone}" title="${escapeHtml(statusTitle)}">${escapeHtml(status)}</strong>
         <span class="${tone}">${escapeHtml(amount)}</span>
       </div>`;
-    }).join("") || '<div class="ae-overview-empty">Load a previous month to compare momentum.</div>';
+    }).join("") || `<div class="ae-overview-empty">${comparisonState?.status === "loading"
+        ? `Loading ${escapeHtml(comparisonLabel)} revenue and Actor data…`
+      : comparisonState?.status === "error"
+        ? `Could not load ${escapeHtml(comparisonLabel)}. ${escapeHtml(comparisonState.message || "Try again.")}`
+        : `Preparing the ${escapeHtml(comparisonLabel)} revenue comparison…`}</div>`;
 
     const alertsByActor = new Map();
     const addAlert = (actor, priority, type, message, tone) => {
@@ -1389,7 +1404,7 @@
           <div class="ae-overview-contributors">${contributorRows}</div>
         </section>
         <section class="ae-overview-card">
-          <div class="ae-card-heading"><div><span>Revenue change by Actor</span><small>${previous ? `${isCurrentMonth ? "Projected" : "Actual"} revenue vs ${escapeHtml(previous.month || "previous period")}` : "Requires a previous loaded month"}</small></div></div>
+          <div class="ae-card-heading"><div><span>Revenue change by Actor</span><small>${previous ? `${isCurrentMonth ? "Projected" : "Actual"} revenue vs ${escapeHtml(previous.month || "previous period")}` : `Compare with ${escapeHtml(comparisonLabel)}`}</small></div>${!previous && comparisonState?.status === "error" ? `<button type="button" class="ae-comparison-load" data-ae-load-comparison="${escapeHtml(comparisonMonth)}">Retry</button>` : ""}</div>
           <div class="ae-overview-movers">${moverRows}</div>
         </section>
       </div>
@@ -1479,8 +1494,11 @@
       </div>`;
     }
 
-    const previousKey = Object.keys(months).sort().filter((key) => key < data.month).at(-1);
-    const previous = previousKey ? overviewForSelection(months[previousKey]) : null;
+    const previousKey = offsetMonth(data.month, -1);
+    const previousData = months[previousKey];
+    const previousReady = Array.isArray(previousData?.daily)
+      && Array.isArray(previousData?.actorBreakdown?.actors);
+    const previous = previousReady ? overviewForSelection(previousData) : null;
 
     return `${shellStart}
       <div class="ae-view ${activeView === "overview" ? "ae-visible" : ""}" data-ae-section="overview">
@@ -1611,6 +1629,7 @@
     if (!root) return;
     root.classList.toggle("ae-open", open);
     root.querySelector("#ae-panel").setAttribute("aria-hidden", String(!open));
+    if (open) render();
   }
 
   function updateFullscreenControl(root = document.getElementById(UI_ID)) {
@@ -1695,6 +1714,18 @@
     const keys = Object.keys(months).sort();
     if (!selectedMonth || !months[selectedMonth]) selectedMonth = keys.at(-1) || null;
     const data = selectedMonth ? months[selectedMonth] : null;
+    if (panelOpen && activeView === "overview" && data?.month) {
+      const comparisonKey = offsetMonth(data.month, -1);
+      const comparisonData = months[comparisonKey];
+      const comparisonReady = Array.isArray(comparisonData?.daily)
+        && Array.isArray(comparisonData?.actorBreakdown?.actors);
+      const comparisonStatus = monthLoadStatus[comparisonKey]?.status;
+      if (!comparisonReady && comparisonStatus !== "loading" && comparisonStatus !== "error") {
+        comparisonMonthRequest = { target: comparisonKey, returnTo: data.month };
+        monthLoadStatus[comparisonKey] = { status: "loading", message: "" };
+        window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${comparisonKey}-01`, purpose: "comparison" }, window.location.origin);
+      }
+    }
     const content = root.querySelector("#ae-panel-content");
     const barTooltip = root.querySelector("#ae-bar-tooltip");
     if (barTooltip) barTooltip.hidden = true;
@@ -1711,9 +1742,18 @@
       const yearNumber = content.querySelector("#ae-year-number")?.value;
       const key = `${yearNumber}-${monthNumber}`;
       if (!/^\d{4}-\d{2}$/.test(key)) return;
+      comparisonMonthRequest = null;
       pendingMonth = key;
       if (months[key]) selectedMonth = key;
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01` }, window.location.origin);
+      render();
+    });
+    content.querySelector("[data-ae-load-comparison]")?.addEventListener("click", (event) => {
+      const key = event.currentTarget.dataset.aeLoadComparison;
+      if (!/^\d{4}-\d{2}$/.test(key)) return;
+      comparisonMonthRequest = { target: key, returnTo: data.month };
+      monthLoadStatus[key] = { status: "loading", message: "" };
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01`, purpose: "comparison" }, window.location.origin);
       render();
     });
     content.querySelector("#ae-actor-picker-button")?.addEventListener("click", () => {
@@ -1837,10 +1877,14 @@
     if (event.data?.source !== MESSAGE_SOURCE) return;
     if (event.data?.type === "PROFIT_MARGIN_DATA") {
       const monthData = normalizePayload(event.data.payload, event.data.month);
-      if (monthData) void saveProfitMonth(monthData);
+      if (monthData && !event.data.background) {
+        const comparisonKey = offsetMonth(monthData.month, -1);
+        if (monthLoadStatus[comparisonKey]?.status === "error") delete monthLoadStatus[comparisonKey];
+      }
+      if (monthData) void saveProfitMonth(monthData, { background: Boolean(event.data.background) });
     } else if (event.data?.type === "ACTOR_BREAKDOWN_DATA") {
       const breakdown = normalizeActorBreakdown(event.data.payload, event.data.month);
-      if (breakdown) void saveActorBreakdown(breakdown);
+      if (breakdown) void saveActorBreakdown(breakdown, { background: Boolean(event.data.background) });
     } else if (event.data?.type === "ACTOR_DAILY_DATA") {
       const daily = normalizeActorDaily(event.data.payload);
       if (daily) void saveActorDaily(event.data.month, event.data.actorId, daily);
@@ -1919,7 +1963,12 @@
           status: event.data.status,
           message: String(event.data.message || ""),
         };
-        if (event.data.status === "complete") {
+        const isComparison = event.data.purpose === "comparison" || comparisonMonthRequest?.target === key;
+        if (isComparison && (event.data.status === "complete" || event.data.status === "error")) {
+          const returnTo = comparisonMonthRequest?.returnTo;
+          if (returnTo && months[returnTo]) selectedMonth = returnTo;
+          comparisonMonthRequest = null;
+        } else if (event.data.status === "complete") {
           selectedMonth = key;
           pendingMonth = null;
         }

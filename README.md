@@ -23,6 +23,9 @@ traffic, and quality snapshots. Snapshot links open the relevant detailed view.
 Hovering the pulse reveals revenue, profit, costs, margin, and prior-day movement.
 Momentum labels distinguish a verified newly published Actor from one that simply has
 no matching revenue baseline in the previous loaded month.
+If that baseline is missing, **Revenue change by Actor** automatically loads the exact
+previous calendar month in the background without navigating away from the current
+Overview. A manual Retry action appears only if the background request fails.
 
 Use the expand icon in the dashboard header to switch from the side panel to a
 full-viewport analysis workspace. The same control minimizes it back to the side

@@ -340,7 +340,7 @@
     }
   };
 
-  const publish = (url, payload) => {
+  const publish = (url, payload, { background = false } = {}) => {
     let type = ENDPOINTS.get(url.pathname);
     if (!type) return;
 
@@ -361,7 +361,7 @@
           }))
         : [];
       actorsByMonth.set(key, actors);
-      if (!profitRequestByMonth.has(key)) {
+      if (!background && !profitRequestByMonth.has(key)) {
         post({
           type: "ACTOR_DAILY_STATUS",
           month: key,
@@ -387,14 +387,16 @@
           message: "Waiting for an authenticated analytics request for this month.",
         });
       }
-      void maybeLoadDailyActors(key);
-      void maybeLoadDailyRuns(key);
-      void maybeLoadDailyUsers(key);
-      if (qualityRequestedMonths.has(key)) void loadActorQuality(key);
-      if (marketingRequestedMonths.has(key)) void loadActorMarketing(key);
+      if (!background) {
+        void maybeLoadDailyActors(key);
+        void maybeLoadDailyRuns(key);
+        void maybeLoadDailyUsers(key);
+        if (qualityRequestedMonths.has(key)) void loadActorQuality(key);
+        if (marketingRequestedMonths.has(key)) void loadActorMarketing(key);
+      }
     }
 
-    post({ type, month: url.searchParams.get("month"), payload });
+    post({ type, month: url.searchParams.get("month"), payload, background });
   };
 
   const inspectResponse = async (requestUrl, response) => {
@@ -472,16 +474,17 @@
     return originalOpen.call(this, method, url, ...rest);
   };
 
-  const requestMonth = async (month) => {
+  const requestMonth = async (month, purpose = "navigation") => {
     const key = monthKey(month);
+    const background = purpose === "comparison";
     if (!/^\d{4}-\d{2}$/.test(key) || manualLoadingMonths.has(key)) return;
     if (!latestProfitTemplate) {
-      post({ type: "MONTH_LOAD_STATUS", month: key, status: "error", message: "Reload Apify Monetization first so an authenticated request can be captured." });
+      post({ type: "MONTH_LOAD_STATUS", month: key, status: "error", message: "Reload Apify Monetization first so an authenticated request can be captured.", purpose });
       return;
     }
 
     manualLoadingMonths.add(key);
-    post({ type: "MONTH_LOAD_STATUS", month: key, status: "loading" });
+    post({ type: "MONTH_LOAD_STATUS", month: key, status: "loading", purpose });
     try {
       const profitUrl = new URL("/actor-analytics/profit-margin", latestProfitTemplate.url);
       profitUrl.searchParams.set("month", `${key}-01`);
@@ -499,11 +502,11 @@
         throw new Error(`HTTP ${!profitResponse.ok ? profitResponse.status : breakdownResponse.status}`);
       }
       const [profitPayload, breakdownPayload] = await Promise.all([profitResponse.json(), breakdownResponse.json()]);
-      publish(profitUrl, profitPayload);
-      publish(breakdownUrl, breakdownPayload);
-      post({ type: "MONTH_LOAD_STATUS", month: key, status: "complete" });
+      publish(profitUrl, profitPayload, { background });
+      publish(breakdownUrl, breakdownPayload, { background });
+      post({ type: "MONTH_LOAD_STATUS", month: key, status: "complete", purpose });
     } catch (error) {
-      post({ type: "MONTH_LOAD_STATUS", month: key, status: "error", message: String(error?.message || "Month loading failed") });
+      post({ type: "MONTH_LOAD_STATUS", month: key, status: "error", message: String(error?.message || "Month loading failed"), purpose });
     } finally {
       manualLoadingMonths.delete(key);
     }
@@ -512,7 +515,7 @@
   window.addEventListener("message", (event) => {
     if (event.source !== window || event.origin !== window.location.origin) return;
     if (event.data?.source !== MESSAGE_SOURCE) return;
-    if (event.data?.type === "REQUEST_MONTH") void requestMonth(event.data.month);
+    if (event.data?.type === "REQUEST_MONTH") void requestMonth(event.data.month, event.data.purpose);
     if (event.data?.type === "REQUEST_ACTOR_QUALITY") {
       const key = monthKey(event.data.month);
       if (key) qualityRequestedMonths.add(key);
