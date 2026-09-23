@@ -9,6 +9,7 @@
   let actorQuality = {};
   let selectedMonth = null;
   let panelOpen = false;
+  let panelFullscreen = false;
   let activeView = "overview";
   let dailyMetric = "revenueUsd";
   let healthMetric = "problemRuns";
@@ -1438,7 +1439,10 @@
       <aside id="ae-panel" aria-label="Apify earnings dashboard" aria-hidden="true">
         <header class="ae-panel-header">
           <div class="ae-brand"><div class="ae-logo" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3 13.5V9.75M7 13.5V5.75M11 13.5V8M15 13.5V3.5"/></svg></div><div><strong>Actor Analytics</strong><span>Private workspace</span></div></div>
-          <button id="ae-close" type="button" aria-label="Close dashboard">×</button>
+          <div class="ae-panel-actions">
+            <button id="ae-fullscreen-toggle" type="button" aria-label="Enter fullscreen analysis" title="Enter fullscreen analysis"></button>
+            <button id="ae-close" type="button" aria-label="Close dashboard">×</button>
+          </div>
         </header>
         <main id="ae-panel-content"></main>
       </aside>
@@ -1446,11 +1450,15 @@
     document.documentElement.appendChild(root);
 
     root.querySelector("#ae-launcher").addEventListener("click", () => setPanel(true));
+    root.querySelector("#ae-fullscreen-toggle").addEventListener("click", () => setPanelFullscreen(!panelFullscreen));
     root.querySelector("#ae-close").addEventListener("click", () => setPanel(false));
     root.querySelector("#ae-backdrop").addEventListener("click", () => setPanel(false));
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && panelOpen) setPanel(false);
+      if (event.key !== "Escape" || !panelOpen) return;
+      if (panelFullscreen) setPanelFullscreen(false);
+      else setPanel(false);
     });
+    updateFullscreenControl(root);
     return root;
   }
 
@@ -1482,6 +1490,25 @@
     if (!root) return;
     root.classList.toggle("ae-open", open);
     root.querySelector("#ae-panel").setAttribute("aria-hidden", String(!open));
+  }
+
+  function updateFullscreenControl(root = document.getElementById(UI_ID)) {
+    if (!root) return;
+    root.classList.toggle("ae-fullscreen", panelFullscreen);
+    const button = root.querySelector("#ae-fullscreen-toggle");
+    if (!button) return;
+    const label = panelFullscreen ? "Minimize to side panel" : "Enter fullscreen analysis";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.setAttribute("aria-pressed", String(panelFullscreen));
+    button.innerHTML = panelFullscreen
+      ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3v4.5H3M12.5 3v4.5H17M17 12.5h-4.5V17M3 12.5h4.5V17"/></svg>'
+      : '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M17 13v4h-4M3 13v4h4"/></svg>';
+  }
+
+  function setPanelFullscreen(fullscreen) {
+    panelFullscreen = Boolean(fullscreen);
+    updateFullscreenControl(ensureUi());
   }
 
   function positionBarTooltip(event, tooltip) {

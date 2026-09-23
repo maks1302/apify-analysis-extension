@@ -387,6 +387,7 @@
   background: var(--ae-bg);
   border-left: 1px solid #242931;
   box-shadow: -20px 0 64px rgba(0, 0, 0, .34);
+  transition: transform 240ms cubic-bezier(.2,.8,.2,1), width 220ms cubic-bezier(.2,.8,.2,1);
   width: min(940px, 96vw);
 }
 
@@ -414,6 +415,34 @@
 
 .ae-logo svg { fill: none; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-width: 1.6; width: 17px; }
 
+.ae-panel-actions { align-items: center; display: flex; gap: 4px; }
+
+#ae-fullscreen-toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #828b97;
+  cursor: pointer;
+  display: flex;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  width: 30px;
+}
+
+#ae-fullscreen-toggle svg {
+  fill: none;
+  height: 15px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: 15px;
+}
+
+#ae-fullscreen-toggle:hover { background: #1b1f25; border-color: #2d333c; color: #f1f3f5; }
+
 #ae-close {
   background: transparent;
   border: 1px solid transparent;
@@ -427,6 +456,27 @@
 
 #ae-close:hover { background: #1b1f25; border-color: #2d333c; color: #f1f3f5; }
 #ae-panel-content { padding: 24px; }
+
+.ae-fullscreen #ae-panel {
+  border-left: 0;
+  box-shadow: none;
+  max-width: none;
+  width: 100vw;
+}
+
+.ae-fullscreen #ae-panel-content {
+  margin: 0 auto;
+  max-width: 1520px;
+  padding: 28px 36px 52px;
+  width: 100%;
+}
+
+.ae-fullscreen .ae-panel-header { padding-left: 28px; padding-right: 28px; }
+.ae-fullscreen .ae-overview-primary-grid { grid-template-columns: minmax(0, 1.55fr) minmax(340px, .75fr); }
+.ae-fullscreen .ae-overview-secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ae-fullscreen .ae-chart-card,
+.ae-fullscreen .ae-daily-stack-card { padding: 22px 24px; }
+.ae-fullscreen .ae-actor-legend span { max-width: 220px; }
 
 .ae-period-row { margin-bottom: 18px; }
 .ae-period-label { color: #707986; font-size: 9px; font-weight: 650; letter-spacing: .09em; }
@@ -1165,4 +1215,5 @@
   .ae-overview-snapshot { min-height: 122px; }
   .ae-overview-contributor { grid-template-columns: 16px minmax(105px, 1fr) 65px; }
   .ae-overview-contributor .ae-overview-share { display: none; }
+  #ae-fullscreen-toggle { display: none; }
 }

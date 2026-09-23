@@ -21,6 +21,11 @@ projection, a compact revenue/profit pulse, prioritized Actor alerts, revenue
 concentration, top contributors, projected Actor momentum, portfolio run health,
 acquisition, and quality snapshots. Snapshot links open the relevant detailed view.
 
+Use the expand icon in the dashboard header to switch from the side panel to a
+full-viewport analysis workspace. The same control minimizes it back to the side
+panel. While fullscreen is active, Escape minimizes first; pressing Escape again
+closes the dashboard.
+
 The Actors tab also includes a month-to-date revenue composition chart and a run
 health dashboard. Revenue bars are split into net profit and cost; the health
 dashboard ranks Actors by failed, aborted, and timed-out runs.
