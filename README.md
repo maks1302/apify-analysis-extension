@@ -14,7 +14,9 @@ A local-only Chrome extension that visualizes the profit-margin data already loa
 
 Use the **Overview** and **Actor performance** tabs to switch between daily trends and the
 per-Actor ranking. Actor rows include revenue, cost, profit, paying users, run
-success rate, result volume, and pricing model.
+success rate, result volume, pricing model, and month-over-month revenue and profit
+trends. For an in-progress month, Actor trends use projected month-end pace so they
+are not distorted by comparing partial-month totals with a completed month.
 
 The **Overview** is an executive command center: financial pacing and current-month
 projection, an interactive daily financial trend, priority alerts, revenue
@@ -25,7 +27,8 @@ Momentum labels distinguish a verified newly published Actor from one that simpl
 no matching revenue baseline in the previous loaded month.
 If that baseline is missing, **Revenue change by Actor** automatically loads the exact
 previous calendar month in the background without navigating away from the current
-Overview. A manual Retry action appears only if the background request fails.
+Overview. Actor performance requests the same baseline when opened directly. A manual
+Retry action appears only if the background request fails.
 
 Use the expand icon in the dashboard header to switch from the side panel to a
 full-viewport analysis workspace. The same control minimizes it back to the side

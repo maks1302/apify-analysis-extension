@@ -213,8 +213,12 @@
 .ae-actor-list-card { background: var(--ae-card); border: 1px solid var(--ae-border); border-radius: 16px; margin-top: 12px; overflow: hidden; }
 .ae-actor-heading { border-bottom: 1px solid var(--ae-border); margin: 0; padding: 18px; }
 .ae-actor-heading > small { color: var(--ae-muted); font-size: 9px; }
+.ae-actor-heading-meta { align-items: center; display: flex; gap: 9px; }
+.ae-actor-heading-meta small { color: var(--ae-muted); font-size: 9px; }
+.ae-actor-heading-meta button { background: transparent; border: 1px solid var(--ae-border); border-radius: 6px; color: var(--ae-blue); cursor: pointer; font-size: 10px; font-weight: 650; padding: 5px 8px; }
+.ae-actor-heading-meta button:hover { background: var(--ae-hover); }
 .ae-actor-list { max-height: calc(100vh - 330px); min-height: 300px; overflow-y: auto; }
-.ae-actor-row { align-items: center; border-bottom: 1px solid rgba(255,255,255,.055); display: grid; gap: 10px; grid-template-columns: 24px 36px minmax(140px, 1.3fr) minmax(170px, 1.5fr) 72px 72px 74px 92px; min-height: 72px; padding: 10px 14px; }
+.ae-actor-row { align-items: center; border-bottom: 1px solid rgba(255,255,255,.055); display: grid; gap: 10px; grid-template-columns: 24px 36px minmax(130px, 1.2fr) minmax(160px, 1.4fr) minmax(98px, .8fr) 66px 66px 70px 86px; min-height: 72px; padding: 10px 14px; }
 .ae-actor-row:last-child { border-bottom: 0; }
 .ae-actor-row:hover { background: rgba(255,255,255,.022); }
 .ae-actor-rank { color: #666677; font-size: 10px; text-align: center; }
@@ -229,6 +233,13 @@
 .ae-actor-profit > div { background: rgba(255,255,255,.06); border-radius: 4px; height: 4px; overflow: hidden; }
 .ae-actor-profit i { background: linear-gradient(90deg, var(--ae-purple), #a997ff); border-radius: inherit; display: block; height: 100%; }
 .ae-actor-profit span { color: var(--ae-muted); font-size: 7px; }
+.ae-actor-trend { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ae-actor-trend > div { align-items: baseline; display: flex; gap: 6px; justify-content: space-between; }
+.ae-actor-trend span { color: var(--ae-muted); font-size: 8px; white-space: nowrap; }
+.ae-actor-trend strong { font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ae-actor-trend-state { gap: 3px; }
+.ae-actor-trend-state strong { font-size: 10px; }
+.ae-actor-trend-state span { overflow: hidden; text-overflow: ellipsis; }
 .ae-actor-stat { display: flex; flex-direction: column; gap: 4px; }
 .ae-actor-stat strong { color: #ddddE8; font-size: 10px; }
 .ae-actor-stat span { color: var(--ae-muted); font-size: 7px; }
@@ -305,8 +316,8 @@
   .ae-portfolio-row { gap: 9px; grid-template-columns: minmax(100px, .9fr) minmax(130px, 1.4fr) 80px; }
   .ae-health-head, .ae-health-row { grid-template-columns: minmax(125px, 1fr) 48px 48px 48px 58px; }
   .ae-health-head span:nth-child(5), .ae-health-row .ae-health-timeout { display: none; }
-  .ae-actor-row { grid-template-columns: 20px 34px minmax(120px, 1fr) minmax(150px, 1fr) 65px; }
-  .ae-actor-row .ae-actor-stat:nth-of-type(n+2), .ae-actor-pricing { display: none; }
+  .ae-actor-row { grid-template-columns: 20px 34px minmax(110px, 1fr) minmax(135px, 1fr) minmax(92px, .75fr); }
+  .ae-actor-row .ae-actor-stat, .ae-actor-pricing { display: none; }
   .ae-card-heading { gap: 12px; }
   .ae-actor-legend span { max-width: 125px; }
   .ae-run-heading { flex-direction: column; }
@@ -1407,6 +1418,7 @@
 
 .ae-card-heading span { font-size: 15px; }
 .ae-card-heading small { font-size: 11px; line-height: 1.4; }
+.ae-actor-heading-meta small { font-size: 11px; }
 .ae-legend { font-size: 11px; }
 .ae-axis-labels { font-size: 10px; }
 .ae-stack-tick,
@@ -1452,6 +1464,9 @@
 .ae-actor-identity span { font-size: 10px; }
 .ae-actor-profit strong { font-size: 14px; }
 .ae-actor-profit span { font-size: 10px; }
+.ae-actor-trend span { font-size: 10px; }
+.ae-actor-trend strong,
+.ae-actor-trend-state strong { font-size: 11px; }
 .ae-actor-stat strong { font-size: 12px; }
 .ae-actor-stat span { font-size: 10px; }
 .ae-actor-pricing { font-size: 10px; line-height: 1.35; }
@@ -1789,6 +1804,7 @@
   .ae-health-rate strong,
   .ae-actor-identity strong,
   .ae-actor-profit strong,
+  .ae-actor-trend strong,
   .ae-actor-stat strong,
   .ae-quality-identity strong,
   .ae-quality-metric strong,
@@ -1828,6 +1844,7 @@
   .ae-health-rate span,
   .ae-actor-identity span,
   .ae-actor-profit span,
+  .ae-actor-trend span,
   .ae-actor-stat span,
   .ae-quality-identity span,
   .ae-quality-metric span,

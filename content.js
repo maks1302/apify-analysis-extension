@@ -1061,13 +1061,30 @@
       return `<div class="ae-empty ae-empty-actors"><div class="ae-empty-icon">◌</div><h2>No Actors selected</h2><p>Choose one or more Actors from the filter above to populate this view.</p></div>`;
     }
     const maxProfit = Math.max(...actors.map((actor) => actor.profitUsd), 1);
+    const comparisonMonth = offsetMonth(data.month, -1);
+    const comparisonBreakdown = months[comparisonMonth]?.actorBreakdown;
+    const comparisonActors = new Map((comparisonBreakdown?.actors || []).map((actor) => [actor.id, actor]));
+    const comparisonState = monthLoadStatus[comparisonMonth];
+    const comparisonReady = Array.isArray(comparisonBreakdown?.actors);
+    const comparisonLabel = new Date(`${comparisonMonth}-02T12:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const [year, monthNumber] = data.month.split("-").map(Number);
+    const daysInMonth = new Date(year, monthNumber, 0).getDate();
+    const isCurrentMonth = data.month === localDateKey().slice(0, 7);
+    const reportedDays = (data.daily || [])
+      .filter((day) => dateIsVisibleForMonth(day.date, data.month))
+      .map((day) => number(day.date.slice(8)));
+    const lastReportedDay = reportedDays.length
+      ? Math.max(...reportedDays)
+      : isCurrentMonth ? number(localDateKey().slice(8)) : daysInMonth;
+    const paceFactor = isCurrentMonth ? daysInMonth / Math.max(1, Math.min(lastReportedDay, daysInMonth)) : 1;
     const totals = actors.reduce((sum, actor) => ({
       revenue: sum.revenue + actor.revenueUsd,
       profit: sum.profit + actor.profitUsd,
       users: sum.users + actor.payingUsers,
       runs: sum.runs + actor.totalRuns,
     }), { revenue: 0, profit: 0, users: 0, runs: 0 });
-    const profitChange = change(breakdown.previousMonthProfitUsd, breakdown.currentMonthProfitUsd);
+    const previousSelectedProfit = actors.reduce((sum, actor) => sum + number(comparisonActors.get(actor.id)?.profitUsd), 0);
+    const profitChange = comparisonReady ? change(previousSelectedProfit, totals.profit * paceFactor) : null;
 
     const topRevenueActors = [...actors]
       .filter((actor) => actor.revenueUsd > 0)
@@ -1131,6 +1148,28 @@
         : `<span>${escapeHtml(initials || "A")}</span>`;
       const barWidth = Math.max(0, Math.min(100, (actor.profitUsd / maxProfit) * 100));
       const pricing = actor.pricingModel.replaceAll("_", " ").toLowerCase();
+      const comparisonActor = comparisonActors.get(actor.id);
+      const firstPublishedMonth = String(actorQuality[actor.id]?.firstPublishedAt || "").slice(0, 7);
+      const confirmedNew = Boolean(comparisonReady && !comparisonActor && firstPublishedMonth && firstPublishedMonth > comparisonMonth);
+      const trendMetric = (label, currentValue, previousValue) => {
+        const movement = change(previousValue, currentValue * paceFactor);
+        return `<div><span>${label}</span>${movement === null
+          ? `<strong class="ae-muted">—</strong>`
+          : `<strong class="${movement >= 0 ? "ae-up" : "ae-down"}">${movement >= 0 ? "↑" : "↓"} ${Math.abs(movement * 100).toFixed(1)}%</strong>`}</div>`;
+      };
+      let actorTrend;
+      if (comparisonActor) {
+        actorTrend = `<div class="ae-actor-trend" title="${escapeHtml(`${isCurrentMonth ? "Projected " : ""}${data.month} performance compared with ${comparisonLabel}`)}">
+          ${trendMetric("Revenue", actor.revenueUsd, comparisonActor.revenueUsd)}
+          ${trendMetric("Profit", actor.profitUsd, comparisonActor.profitUsd)}
+        </div>`;
+      } else {
+        const trendStatus = !comparisonReady
+          ? comparisonState?.status === "error" ? "Unavailable" : "Loading…"
+          : confirmedNew ? "New Actor" : "No baseline";
+        const trendDetail = !comparisonReady ? comparisonLabel : confirmedNew ? `Published after ${comparisonLabel}` : `Not present in ${comparisonLabel}`;
+        actorTrend = `<div class="ae-actor-trend ae-actor-trend-state"><strong class="ae-muted">${escapeHtml(trendStatus)}</strong><span>${escapeHtml(trendDetail)}</span></div>`;
+      }
 
       return `<article class="ae-actor-row">
         <div class="ae-actor-rank">${index + 1}</div>
@@ -1144,6 +1183,7 @@
           <div><i style="width:${barWidth.toFixed(2)}%"></i></div>
           <span>${money(actor.revenueUsd)} revenue · ${money(actor.costUsd)} cost</span>
         </div>
+        ${actorTrend}
         <div class="ae-actor-stat"><strong>${integer(actor.payingUsers)}</strong><span>paying users</span></div>
         <div class="ae-actor-stat"><strong>${percent(actor.successRate)}</strong><span>${integer(actor.totalRuns)} runs</span></div>
         <div class="ae-actor-stat"><strong>${integer(actor.results)}</strong><span>results</span></div>
@@ -1153,7 +1193,7 @@
 
     return `<div class="ae-actors-view">
       <div class="ae-actor-summary ae-stat-ledger ae-stat-ledger-4">
-        <article><span>Net profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange !== null && profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? "No comparison" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% vs previous`}</small></article>
+        <article><span>Net profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange === null ? "ae-muted" : profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? comparisonState?.status === "error" ? "Comparison unavailable" : "Loading comparison…" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% ${isCurrentMonth ? "projected " : ""}vs previous`}</small></article>
         <article><span>Revenue</span><strong>${money(totals.revenue)}</strong><small>${actors.length} Actors</small></article>
         <article><span>Paying users</span><strong>${integer(totals.users)}</strong><small>Sum across actors</small></article>
         <article><span>Total runs</span><strong>${integer(totals.runs)}</strong><small>For captured month</small></article>
@@ -1184,7 +1224,10 @@
       <section class="ae-actor-list-card">
         <div class="ae-card-heading ae-actor-heading">
           <div><span>Actor performance table</span><small>Ranked by net profit</small></div>
-          <small>Revenue, usage and reliability</small>
+          <div class="ae-actor-heading-meta">
+            <small>${comparisonReady ? `${isCurrentMonth ? "Projected trends" : "Trends"} vs ${escapeHtml(comparisonLabel)}` : comparisonState?.status === "error" ? `Previous-month trends unavailable` : `Loading ${escapeHtml(comparisonLabel)} trends…`}</small>
+            ${!comparisonReady && comparisonState?.status === "error" ? `<button type="button" data-ae-load-comparison="${escapeHtml(comparisonMonth)}">Retry</button>` : ""}
+          </div>
         </div>
         <div class="ae-actor-list">${rows}</div>
       </section>
@@ -1714,7 +1757,7 @@
     const keys = Object.keys(months).sort();
     if (!selectedMonth || !months[selectedMonth]) selectedMonth = keys.at(-1) || null;
     const data = selectedMonth ? months[selectedMonth] : null;
-    if (panelOpen && activeView === "overview" && data?.month) {
+    if (panelOpen && (activeView === "overview" || activeView === "actors") && data?.month) {
       const comparisonKey = offsetMonth(data.month, -1);
       const comparisonData = months[comparisonKey];
       const comparisonReady = Array.isArray(comparisonData?.daily)
@@ -1748,13 +1791,15 @@
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01` }, window.location.origin);
       render();
     });
-    content.querySelector("[data-ae-load-comparison]")?.addEventListener("click", (event) => {
-      const key = event.currentTarget.dataset.aeLoadComparison;
-      if (!/^\d{4}-\d{2}$/.test(key)) return;
-      comparisonMonthRequest = { target: key, returnTo: data.month };
-      monthLoadStatus[key] = { status: "loading", message: "" };
-      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01`, purpose: "comparison" }, window.location.origin);
-      render();
+    content.querySelectorAll("[data-ae-load-comparison]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const key = event.currentTarget.dataset.aeLoadComparison;
+        if (!/^\d{4}-\d{2}$/.test(key)) return;
+        comparisonMonthRequest = { target: key, returnTo: data.month };
+        monthLoadStatus[key] = { status: "loading", message: "" };
+        window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01`, purpose: "comparison" }, window.location.origin);
+        render();
+      });
     });
     content.querySelector("#ae-actor-picker-button")?.addEventListener("click", () => {
       actorPickerOpen = !actorPickerOpen;
