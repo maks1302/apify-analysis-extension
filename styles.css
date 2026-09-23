@@ -1217,3 +1217,197 @@
   .ae-overview-contributor .ae-overview-share { display: none; }
   #ae-fullscreen-toggle { display: none; }
 }
+
+/* Readable typography ------------------------------------------------------ */
+#apify-earnings-extension-root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+#apify-earnings-extension-root * {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+#apify-earnings-extension-root :is(button, input, select, textarea) {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+#apify-earnings-extension-root :is(strong, b) { line-height: 1.25; }
+#ae-panel { width: min(1020px, 96vw); }
+#ae-launcher { font-size: 13px; }
+#ae-inline-launcher { font-size: 12px; }
+
+.ae-brand strong { font-size: 15px; font-weight: 650; }
+.ae-brand span { font-size: 11px; line-height: 1.35; }
+.ae-eyebrow,
+.ae-period-label { font-size: 11px; }
+.ae-period-row h2 { font-size: 24px; line-height: 1.2; }
+
+.ae-period-picker select,
+#ae-actor-picker-button { font-size: 13px; }
+.ae-period-picker button { font-size: 12px; min-height: 31px; }
+#ae-actor-search { font-size: 13px; min-height: 36px; }
+.ae-picker-actions button { font-size: 11px; }
+.ae-picker-list label { min-height: 43px; }
+.ae-picker-list span { font-size: 12px; }
+.ae-picker-list small,
+.ae-picker-empty { font-size: 10px; }
+.ae-month-error { font-size: 11px; line-height: 1.45; }
+
+.ae-tabs button { font-size: 13px; min-height: 36px; }
+.ae-tabs button span { font-size: 10px; }
+
+.ae-kpi { min-height: 112px; }
+.ae-kpi > span { font-size: 12px; }
+.ae-kpi strong { font-size: 27px; }
+.ae-kpi small,
+.ae-kpi .ae-muted,
+.ae-kpi .ae-up,
+.ae-kpi .ae-down { font-size: 11px; line-height: 1.35; }
+
+.ae-card-heading span { font-size: 15px; }
+.ae-card-heading small { font-size: 11px; line-height: 1.4; }
+.ae-legend { font-size: 11px; }
+.ae-axis-labels { font-size: 10px; }
+.ae-stack-tick,
+.ae-stack-date { font-size: 10px; }
+.ae-stack-axis-title { font-size: 10px; }
+.ae-actor-legend span { font-size: 10px; line-height: 1.35; }
+.ae-chart-note,
+.ae-inline-empty,
+.ae-status-error { font-size: 11px; }
+.ae-load-progress span { font-size: 10px; }
+
+.ae-insights span,
+.ae-actor-summary span,
+.ae-run-summary span,
+.ae-quality-summary span { font-size: 11px; }
+.ae-insights strong { font-size: 19px; }
+.ae-actor-summary strong { font-size: 22px; }
+.ae-run-summary strong,
+.ae-quality-summary strong { font-size: 20px; }
+.ae-insights small,
+.ae-actor-summary small,
+.ae-run-summary small,
+.ae-quality-summary small { font-size: 10px; line-height: 1.35; }
+
+.ae-portfolio-name strong { font-size: 12px; }
+.ae-portfolio-name span { font-size: 10px; }
+.ae-portfolio-values strong { font-size: 13px; }
+.ae-portfolio-values span { font-size: 10px; }
+.ae-problem-count { font-size: 11px !important; }
+.ae-health-filters button { font-size: 11px; min-height: 30px; }
+.ae-health-head { font-size: 10px; }
+.ae-health-row { min-height: 62px; }
+.ae-health-actor strong { font-size: 12px; }
+.ae-health-actor span:not(.ae-health-dot) { font-size: 10px; }
+.ae-health-metric strong,
+.ae-health-rate strong { font-size: 13px; }
+.ae-health-metric span,
+.ae-health-rate span { font-size: 10px; }
+
+.ae-actor-row { min-height: 78px; }
+.ae-actor-rank { font-size: 11px; }
+.ae-actor-identity strong { font-size: 13px; }
+.ae-actor-identity span { font-size: 10px; }
+.ae-actor-profit strong { font-size: 14px; }
+.ae-actor-profit span { font-size: 10px; }
+.ae-actor-stat strong { font-size: 12px; }
+.ae-actor-stat span { font-size: 10px; }
+.ae-actor-pricing { font-size: 10px; line-height: 1.35; }
+
+.ae-metric-toggle button,
+.ae-run-metric-toggle button,
+.ae-user-metric-toggle button,
+.ae-health-filters button { font-size: 11px; min-height: 30px; }
+.ae-run-empty strong { font-size: 15px; }
+.ae-run-empty span { font-size: 12px; }
+
+.ae-quality-list-head,
+.ae-acquisition-list-head { font-size: 10px; }
+.ae-quality-row-main,
+.ae-acquisition-row-main { min-height: 78px; }
+.ae-quality-identity strong { font-size: 13px; }
+.ae-quality-identity span { font-size: 10px; }
+.ae-quality-metric strong,
+.ae-acquisition-metric strong { font-size: 14px; }
+.ae-quality-metric span,
+.ae-acquisition-metric span { font-size: 10px; line-height: 1.3; }
+.ae-quality-heading > button { font-size: 11px; min-height: 32px; }
+.ae-quality-check,
+.ae-quality-category { font-size: 10px; min-height: 28px; }
+.ae-quality-description { font-size: 12px; line-height: 1.6; }
+.ae-quality-detail-grid span { font-size: 10px; }
+.ae-quality-detail-grid strong { font-size: 15px; }
+.ae-quality-detail-grid small { font-size: 10px; line-height: 1.35; }
+.ae-quality-feedback-title strong { font-size: 12px; }
+.ae-quality-feedback-title small { font-size: 10px; }
+.ae-quality-feedback-item strong { font-size: 11px; }
+.ae-quality-feedback-item span,
+.ae-quality-feedback-item a { font-size: 10px; }
+.ae-quality-feedback-item p,
+.ae-quality-feedback-empty,
+.ae-quality-notice { font-size: 11px; line-height: 1.5; }
+
+.ae-acquisition-bar-row { min-height: 31px; }
+.ae-acquisition-bar-row strong { font-size: 11px; }
+.ae-acquisition-bar-row > span,
+.ae-acquisition-rank { font-size: 10px; }
+.ae-acquisition-detail-title strong { font-size: 12px; }
+.ae-acquisition-detail-title span { font-size: 10px; }
+.ae-acquisition-detail-row { min-height: 31px; }
+.ae-acquisition-detail-row strong,
+.ae-acquisition-detail-row > span { font-size: 10px; }
+.ae-acquisition-empty { font-size: 11px; }
+.ae-acquisition-footnote { font-size: 10px; line-height: 1.55; }
+
+.ae-overview-card .ae-card-heading > button,
+.ae-overview-snapshot button { font-size: 11px; }
+.ae-overview-trend-stats span { font-size: 10px; }
+.ae-overview-trend-stats strong { font-size: 14px; }
+.ae-overview-trend-stats small { font-size: 10px; }
+.ae-overview-alert { min-height: 52px; }
+.ae-overview-alert strong { font-size: 12px; }
+.ae-overview-alert span:not(.ae-overview-alert-dot) { font-size: 10px; line-height: 1.35; }
+.ae-overview-alert small { font-size: 10px; }
+.ae-overview-clear strong { font-size: 12px; }
+.ae-overview-clear p { font-size: 10px; }
+.ae-overview-contributor,
+.ae-overview-mover { min-height: 52px; }
+.ae-overview-rank { font-size: 10px; }
+.ae-overview-actor strong { font-size: 12px; }
+.ae-overview-actor span { font-size: 10px; }
+.ae-overview-money strong { font-size: 12px; }
+.ae-overview-money span { font-size: 10px; }
+.ae-overview-mover > strong { font-size: 12px; }
+.ae-overview-mover > span { font-size: 10px; }
+.ae-overview-empty { font-size: 11px; }
+.ae-overview-snapshot > strong { font-size: 25px; }
+.ae-overview-snapshot > span { font-size: 11px; }
+.ae-overview-snapshot > div:last-child { font-size: 10px; }
+.ae-command-overview > footer { font-size: 10px; }
+
+.ae-tooltip-header span { font-size: 10px; }
+.ae-tooltip-header strong { font-size: 16px; }
+.ae-tooltip-columns { font-size: 10px; }
+.ae-tooltip-row { min-height: 36px; }
+.ae-tooltip-rank { font-size: 10px !important; }
+.ae-tooltip-row strong { font-size: 11px; }
+.ae-tooltip-row span { font-size: 10px; }
+.ae-tooltip-row b { font-size: 11px; }
+.ae-tooltip-footer,
+.ae-tooltip-empty { font-size: 10px; line-height: 1.4; }
+
+.ae-empty h2 { font-size: 21px; }
+.ae-empty p { font-size: 13px; }
+
+@media (max-width: 680px) {
+  #ae-panel { width: 100vw; }
+  .ae-card-heading { align-items: flex-start; }
+  .ae-kpi strong { font-size: 23px; }
+  .ae-period-row h2 { font-size: 22px; }
+}
