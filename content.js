@@ -681,7 +681,7 @@
             ${Object.entries(runMetricLabels).map(([key, label]) => `<button type="button" data-ae-run-metric="${escapeHtml(key)}" class="${runMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
         </div>
-        <div class="ae-run-summary">
+        <div class="ae-run-summary ae-stat-ledger ae-stat-ledger-3">
           <article><span>${escapeHtml(runMetricLabels[runMetric])}</span><strong>${integer(totalValue)}</strong><small>Across loaded Actors</small></article>
           <article><span>Actors with activity</span><strong>${integer(chart?.series.length || 0)}</strong><small>For this metric</small></article>
           <article><span>Peak day</span><strong>${integer(peakValue)}</strong><small>${escapeHtml(peakDate || "No activity")}</small></article>
@@ -782,10 +782,7 @@
     const payingTotal = selectedUserSeries.reduce((sum, [, daily]) => sum + daily.reduce((inner, day) => inner + day.payingUsers, 0), 0);
     const freeTotal = selectedUserSeries.reduce((sum, [, daily]) => sum + daily.reduce((inner, day) => inner + day.freeUsers, 0), 0);
     const payingShare = payingTotal + freeTotal ? payingTotal / (payingTotal + freeTotal) : 0;
-    const totalValue = chart?.series.reduce((sum, item) => sum + item.total, 0) || 0;
-    const peakIndex = chart ? chart.totalsByDate.indexOf(Math.max(...chart.totalsByDate)) : -1;
-    const peakDate = peakIndex >= 0 ? chart.dates[peakIndex] : null;
-    const peakValue = peakIndex >= 0 ? chart.totalsByDate[peakIndex] : 0;
+    const userOccurrenceTotal = payingTotal + freeTotal;
     const unsupported = status?.status === "unsupported";
     const coverage = chart?.dates?.at(-1)
       ? ` · through ${new Date(`${chart.dates.at(-1)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
@@ -799,10 +796,11 @@
             ${Object.entries(userMetricLabels).map(([key, label]) => `<button type="button" data-ae-user-metric="${key}" class="${userMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
         </div>
-        <div class="ae-run-summary">
-          <article><span>${escapeHtml(userMetricLabels[userMetric])}</span><strong>${integer(totalValue)}</strong><small>Actor-user occurrences</small></article>
-          <article><span>Paying share</span><strong>${percent(payingShare)}</strong><small>Paying ÷ free and paying</small></article>
-          <article><span>Peak day</span><strong>${integer(peakValue)}</strong><small>${escapeHtml(peakDate || "No activity")}</small></article>
+        <div class="ae-run-summary ae-stat-ledger ae-stat-ledger-4">
+          <article><span>Total activity</span><strong>${integer(userOccurrenceTotal)}</strong><small>Actor-user occurrences</small></article>
+          <article><span>Paying users</span><strong>${integer(payingTotal)}</strong><small>Occurrences across selected Actors</small></article>
+          <article><span>Free users</span><strong>${integer(freeTotal)}</strong><small>Occurrences across selected Actors</small></article>
+          <article><span>Paying share</span><strong>${percent(payingShare)}</strong><small>Paying ÷ total activity</small></article>
         </div>
         ${chart ? chart.html : `<div class="ae-run-empty"><strong>${unsupported ? "Daily user statistics unavailable" : status?.status === "waiting-request" ? "Waiting for Apify analytics" : `No ${escapeHtml(userMetricLabels[userMetric].toLowerCase())} recorded`}</strong><span>${unsupported ? escapeHtml(status?.message || "The endpoint request failed.") : status?.status === "loading" ? "Actor data is still loading." : "Choose another user metric to inspect."}</span></div>`}
         ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Loaded ${captured} of ${totalActors} Actors</span></div>` : ""}
@@ -898,7 +896,7 @@
     }).join("");
 
     return `<div class="ae-quality-dashboard">
-      <div class="ae-quality-summary">
+      <div class="ae-quality-summary ae-stat-ledger ae-stat-ledger-4">
         <article><span>Average quality</span><strong>${scored.length ? `${(averageQuality * 100).toFixed(1)}` : "—"}</strong><small>Across ${scored.length} scored Actors</small></article>
         <article><span>Strong quality</span><strong>${integer(strongActors)}</strong><small>Score of 80 or higher</small></article>
         <article><span>Best percentile</span><strong>${scored.length ? `${(bestPercentile * 100).toFixed(1)}th` : "—"}</strong><small>Portfolio high point</small></article>
@@ -992,7 +990,7 @@
     }).join("");
 
     return `<div class="ae-acquisition-dashboard">
-      <div class="ae-quality-summary ae-acquisition-summary">
+      <div class="ae-quality-summary ae-acquisition-summary ae-stat-ledger ae-stat-ledger-4">
         <article><span>Store page views</span><strong>${integer(totals.webPageViews)}</strong><small>Actor-level unique totals</small></article>
         <article><span>Console page views</span><strong>${integer(totals.consolePageViews)}</strong><small>Actor-level unique totals</small></article>
         <article><span>Viewing users</span><strong>${integer(totals.viewingUsers)}</strong><small>Across ${available.length} Actors</small></article>
@@ -1123,7 +1121,7 @@
     }).join("");
 
     return `<div class="ae-actors-view">
-      <div class="ae-actor-summary">
+      <div class="ae-actor-summary ae-stat-ledger ae-stat-ledger-4">
         <article><span>Actor profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange !== null && profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? "No comparison" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% vs previous`}</small></article>
         <article><span>Actor revenue</span><strong>${money(totals.revenue)}</strong><small>${actors.length} actors</small></article>
         <article><span>Paying users</span><strong>${integer(totals.users)}</strong><small>Sum across actors</small></article>

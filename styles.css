@@ -1542,3 +1542,83 @@
   .ae-kpi strong { font-size: 23px; }
   .ae-period-row h2 { font-size: 22px; }
 }
+
+/* Shared dashboard metric ledger ------------------------------------------ */
+.ae-stat-ledger,
+.ae-run-summary.ae-stat-ledger,
+.ae-actor-summary.ae-stat-ledger,
+.ae-quality-summary.ae-stat-ledger {
+  align-items: stretch;
+  background: #101318;
+  border: 0;
+  border-radius: 9px;
+  display: grid;
+  gap: 18px;
+  margin: 0 0 12px;
+  padding: 15px 17px;
+}
+
+.ae-stat-ledger-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ae-stat-ledger-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.ae-stat-ledger > article,
+.ae-run-summary.ae-stat-ledger > article,
+.ae-actor-summary.ae-stat-ledger > article,
+.ae-quality-summary.ae-stat-ledger > article {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 62px;
+  min-width: 0;
+  padding: 0;
+}
+
+.ae-stat-ledger > article > span,
+.ae-run-summary.ae-stat-ledger > article > span,
+.ae-actor-summary.ae-stat-ledger > article > span,
+.ae-quality-summary.ae-stat-ledger > article > span {
+  color: #858e9a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.ae-stat-ledger > article > strong,
+.ae-run-summary.ae-stat-ledger > article > strong,
+.ae-actor-summary.ae-stat-ledger > article > strong,
+.ae-quality-summary.ae-stat-ledger > article > strong {
+  color: #eef1f4;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -.025em;
+  line-height: 1.2;
+  margin: 6px 0 0;
+}
+
+.ae-stat-ledger > article:first-child > strong { color: #f7f8fa; font-size: 23px; }
+
+.ae-stat-ledger > article > small,
+.ae-run-summary.ae-stat-ledger > article > small,
+.ae-actor-summary.ae-stat-ledger > article > small,
+.ae-quality-summary.ae-stat-ledger > article > small {
+  color: #6f7885;
+  font-size: 10px;
+  line-height: 1.35;
+  margin: auto 0 0;
+  padding-top: 5px;
+}
+
+.ae-stat-ledger > article > small.ae-up { color: #70c99c; }
+.ae-stat-ledger > article > small.ae-down { color: #e5868e; }
+
+@media (max-width: 680px) {
+  .ae-stat-ledger-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .ae-stat-ledger-3,
+  .ae-stat-ledger-4 { grid-template-columns: 1fr; }
+}
