@@ -1172,13 +1172,49 @@
     const minValue = Math.min(...profit, 0);
     const revenuePath = linePath(revenue, width, height, minValue, maxValue);
     const profitPath = linePath(profit, width, height, minValue, maxValue);
-    const latestRevenue = revenue.at(-1) || 0;
-    const latestProfit = profit.at(-1) || 0;
-    return `<svg class="ae-overview-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="Compact daily revenue and profit trend">
-      <line x1="0" y1="${height}" x2="${width}" y2="${height}" class="ae-overview-spark-base" />
-      <path d="${revenuePath}" class="ae-overview-spark-revenue"><title>Latest revenue ${escapeHtml(money(latestRevenue))}</title></path>
-      <path d="${profitPath}" class="ae-overview-spark-profit"><title>Latest profit ${escapeHtml(money(latestProfit))}</title></path>
-    </svg>`;
+    const span = maxValue - minValue || 1;
+    const xFor = (index) => daily.length > 1 ? index * width / (daily.length - 1) : width / 2;
+    const yFor = (value) => height - ((value - minValue) / span) * height;
+    const step = daily.length > 1 ? width / (daily.length - 1) : width;
+    const hoverTargets = daily.map((day, index) => {
+      const previousDay = daily[index - 1];
+      const x = xFor(index);
+      const zoneLeft = daily.length === 1 ? 0 : Math.max(0, x - step / 2);
+      const zoneRight = daily.length === 1 ? width : Math.min(width, x + step / 2);
+      const revenueChange = previousDay?.revenueUsd
+        ? (day.revenueUsd - previousDay.revenueUsd) / Math.abs(previousDay.revenueUsd)
+        : null;
+      const profitChange = previousDay?.profitUsd
+        ? (day.profitUsd - previousDay.profitUsd) / Math.abs(previousDay.profitUsd)
+        : null;
+      const payload = escapeHtml(JSON.stringify({
+        date: day.date,
+        revenueUsd: day.revenueUsd,
+        profitUsd: day.profitUsd,
+        costUsd: day.costUsd,
+        margin: day.revenueUsd ? day.profitUsd / day.revenueUsd : 0,
+        revenueChange,
+        profitChange,
+        previousRevenueUsd: previousDay ? previousDay.revenueUsd : null,
+        previousProfitUsd: previousDay ? previousDay.profitUsd : null,
+      }));
+      return `<g class="ae-overview-pulse-hit" data-ae-pulse-tooltip="${payload}">
+        <line x1="${x.toFixed(2)}" y1="0" x2="${x.toFixed(2)}" y2="${height}" class="ae-overview-pulse-guide" />
+        <circle cx="${x.toFixed(2)}" cy="${yFor(day.revenueUsd).toFixed(2)}" r="3.5" class="ae-overview-pulse-point ae-revenue-point" />
+        <circle cx="${x.toFixed(2)}" cy="${yFor(day.profitUsd).toFixed(2)}" r="3.5" class="ae-overview-pulse-point ae-profit-point" />
+        <rect x="${zoneLeft.toFixed(2)}" y="0" width="${Math.max(1, zoneRight - zoneLeft).toFixed(2)}" height="${height}" class="ae-overview-pulse-zone" />
+      </g>`;
+    }).join("");
+    const shortDate = (date) => new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `<div class="ae-overview-pulse-wrap">
+      <svg class="ae-overview-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="Interactive daily revenue and profit trend">
+        <line x1="0" y1="${height}" x2="${width}" y2="${height}" class="ae-overview-spark-base" />
+        <path d="${revenuePath}" class="ae-overview-spark-revenue"></path>
+        <path d="${profitPath}" class="ae-overview-spark-profit"></path>
+        ${hoverTargets}
+      </svg>
+      <div class="ae-overview-pulse-range"><span>${escapeHtml(shortDate(daily[0].date))}</span><span>Hover any day for details</span><span>${escapeHtml(shortDate(daily.at(-1).date))}</span></div>
+    </div>`;
   }
 
   function commandOverviewMarkup(data, overviewData, previous) {
@@ -1199,6 +1235,7 @@
       ? `<span class="ae-muted">${fallback}</span>`
       : `<span class="${value >= 0 ? "ae-up" : "ae-down"}">${value >= 0 ? "↑" : "↓"} ${Math.abs(value * 100).toFixed(1)}% ${isCurrentMonth ? "projected vs previous" : "vs previous"}</span>`;
     const bestDay = overviewData.daily.reduce((best, day) => day.profitUsd > best.profitUsd ? day : best, overviewData.daily[0]);
+    const latestDay = overviewData.daily.at(-1);
     const avgRevenue = overviewData.total.revenueUsd / Math.max(overviewData.daily.length, 1);
 
     const actorRevenueTotal = actors.reduce((sum, actor) => sum + actor.revenueUsd, 0);
@@ -1216,19 +1253,35 @@
       </div>`;
     }).join("") || '<div class="ae-overview-empty">No Actor revenue data.</div>';
 
-    const movers = actors.map((actor) => {
+    const movers = previous ? actors.map((actor) => {
       const previousActor = previousActors.get(actor.id);
       const comparableRevenue = actor.revenueUsd * paceFactor;
       const deltaUsd = comparableRevenue - number(previousActor?.revenueUsd);
       const delta = previousActor?.revenueUsd ? deltaUsd / Math.abs(previousActor.revenueUsd) : null;
-      return { actor, deltaUsd, delta, isNew: !previousActor && actor.revenueUsd > 0 };
+      const firstPublishedMonth = String(actorQuality[actor.id]?.firstPublishedAt || "").slice(0, 7);
+      const confirmedNew = Boolean(!previousActor && previous?.month && firstPublishedMonth && firstPublishedMonth > previous.month);
+      return { actor, comparableRevenue, deltaUsd, delta, hasBaseline: Boolean(previousActor), confirmedNew };
     }).filter((item) => item.actor.revenueUsd > 0 || item.deltaUsd !== 0)
-      .sort((a, b) => Math.abs(b.deltaUsd) - Math.abs(a.deltaUsd)).slice(0, 5);
-    const moverRows = movers.map((item) => `<div class="ae-overview-mover">
-      <div class="ae-overview-actor"><strong>${escapeHtml(item.actor.title)}</strong><span>${isCurrentMonth ? "Projected month" : "Selected month"}</span></div>
-      <strong class="${item.deltaUsd >= 0 ? "ae-up" : "ae-down"}">${item.isNew ? "New" : item.delta === null ? "—" : `${item.delta >= 0 ? "+" : ""}${(item.delta * 100).toFixed(1)}%`}</strong>
-      <span class="${item.deltaUsd >= 0 ? "ae-up" : "ae-down"}">${item.deltaUsd >= 0 ? "+" : "−"}${compactMoney(Math.abs(item.deltaUsd))}</span>
-    </div>`).join("") || '<div class="ae-overview-empty">Load a previous month to compare momentum.</div>';
+      .sort((a, b) => Math.abs(b.deltaUsd) - Math.abs(a.deltaUsd)).slice(0, 5) : [];
+    const moverRows = movers.map((item) => {
+      const tone = item.hasBaseline ? (item.deltaUsd >= 0 ? "ae-up" : "ae-down") : "ae-muted";
+      const status = item.hasBaseline
+        ? `${item.delta >= 0 ? "+" : ""}${(item.delta * 100).toFixed(1)}%`
+        : item.confirmedNew ? "New Actor" : "No baseline";
+      const statusTitle = item.hasBaseline
+        ? "Revenue change against the matching Actor in the previous loaded month"
+        : item.confirmedNew
+          ? "The Actor was first published after the comparison month"
+          : "No matching Actor revenue record exists in the previous loaded month";
+      const amount = item.hasBaseline
+        ? `${item.deltaUsd >= 0 ? "+" : "−"}${compactMoney(Math.abs(item.deltaUsd))}`
+        : `${compactMoney(item.comparableRevenue)} ${isCurrentMonth ? "pace" : "revenue"}`;
+      return `<div class="ae-overview-mover">
+        <div class="ae-overview-actor"><strong>${escapeHtml(item.actor.title)}</strong><span>${isCurrentMonth ? "Projected month" : "Selected month"}</span></div>
+        <strong class="${tone}" title="${escapeHtml(statusTitle)}">${escapeHtml(status)}</strong>
+        <span class="${tone}">${escapeHtml(amount)}</span>
+      </div>`;
+    }).join("") || '<div class="ae-overview-empty">Load a previous month to compare momentum.</div>';
 
     const alertsByActor = new Map();
     const addAlert = (actor, priority, type, message, tone) => {
@@ -1287,12 +1340,13 @@
 
       <div class="ae-overview-primary-grid">
         <section class="ae-overview-card ae-overview-trend-card">
-          <div class="ae-card-heading"><div><span>Performance pulse</span><small>Daily revenue and profit · compact view</small></div><div class="ae-legend"><i class="ae-purple"></i>Revenue <i class="ae-green"></i>Profit</div></div>
+          <div class="ae-card-heading"><div><span>Performance pulse</span><small>Daily portfolio economics · hover any day</small></div><div class="ae-legend"><i class="ae-purple"></i>Revenue <i class="ae-green"></i>Profit</div></div>
           ${overviewSparkline(overviewData.daily)}
           <div class="ae-overview-trend-stats">
+            <div><span>Latest revenue</span><strong>${money(latestDay.revenueUsd)}</strong><small>${escapeHtml(latestDay.date)}</small></div>
+            <div><span>Latest profit</span><strong>${money(latestDay.profitUsd)}</strong><small>${percent(latestDay.revenueUsd ? latestDay.profitUsd / latestDay.revenueUsd : 0)} margin</small></div>
             <div><span>Best profit day</span><strong>${money(bestDay.profitUsd)}</strong><small>${escapeHtml(bestDay.date)}</small></div>
-            <div><span>Average daily revenue</span><strong>${money(avgRevenue)}</strong><small>Reported days</small></div>
-            <div><span>Projected profit</span><strong>${money(pacedProfit)}</strong><small>${isCurrentMonth ? "Current pace" : "Actual"}</small></div>
+            <div><span>Average revenue</span><strong>${money(avgRevenue)}</strong><small>${money(pacedProfit)} projected profit</small></div>
           </div>
         </section>
         <section class="ae-overview-card ae-overview-attention-card">
@@ -1547,6 +1601,27 @@
     positionBarTooltip(event, tooltip);
   }
 
+  function showPulseTooltip(event, payload, tooltip) {
+    const dateLabel = new Date(`${payload.date}T12:00:00`).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+    const movement = (value, previousValue) => value === null || value === undefined
+      ? `<small class="ae-muted">${previousValue === 0 ? "Prior day was $0" : "First reported day"}</small>`
+      : `<small class="${value >= 0 ? "ae-up" : "ae-down"}">${value >= 0 ? "↑" : "↓"} ${Math.abs(value * 100).toFixed(1)}% vs prior day</small>`;
+    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>Performance pulse</strong></div><div><span>Margin</span><strong>${escapeHtml(percent(payload.margin))}</strong></div></div>
+      <div class="ae-pulse-tooltip-grid">
+        <div><span>Revenue</span><strong>${escapeHtml(money(payload.revenueUsd))}</strong>${movement(payload.revenueChange, payload.previousRevenueUsd)}</div>
+        <div><span>Net profit</span><strong>${escapeHtml(money(payload.profitUsd))}</strong>${movement(payload.profitChange, payload.previousProfitUsd)}</div>
+        <div><span>Costs</span><strong>${escapeHtml(money(payload.costUsd))}</strong><small>Revenue minus profit</small></div>
+        <div><span>Profit margin</span><strong>${escapeHtml(percent(payload.margin))}</strong><small>Profit ÷ revenue</small></div>
+      </div>
+      <div class="ae-tooltip-footer">Daily totals across the currently selected Actors</div>`;
+    tooltip.hidden = false;
+    positionBarTooltip(event, tooltip);
+  }
+
   function render() {
     const root = ensureUi();
     if (!root) return;
@@ -1674,6 +1749,17 @@
         return;
       }
       hitArea.addEventListener("mouseenter", (event) => showBarTooltip(event, payload, barTooltip));
+      hitArea.addEventListener("mousemove", (event) => positionBarTooltip(event, barTooltip));
+      hitArea.addEventListener("mouseleave", () => { barTooltip.hidden = true; });
+    });
+    content.querySelectorAll("[data-ae-pulse-tooltip]").forEach((hitArea) => {
+      let payload;
+      try {
+        payload = JSON.parse(hitArea.dataset.aePulseTooltip);
+      } catch {
+        return;
+      }
+      hitArea.addEventListener("mouseenter", (event) => showPulseTooltip(event, payload, barTooltip));
       hitArea.addEventListener("mousemove", (event) => positionBarTooltip(event, barTooltip));
       hitArea.addEventListener("mouseleave", () => { barTooltip.hidden = true; });
     });

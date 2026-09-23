@@ -17,9 +17,12 @@ per-Actor ranking. Actor rows include revenue, cost, profit, paying users, run
 success rate, result volume, and pricing model.
 
 The **Overview** is an executive command center: financial pacing and current-month
-projection, a compact revenue/profit pulse, prioritized Actor alerts, revenue
+projection, an interactive daily revenue/profit pulse, prioritized Actor alerts, revenue
 concentration, top contributors, projected Actor momentum, portfolio run health,
 acquisition, and quality snapshots. Snapshot links open the relevant detailed view.
+Hovering the pulse reveals revenue, profit, costs, margin, and prior-day movement.
+Momentum labels distinguish a verified newly published Actor from one that simply has
+no matching revenue baseline in the previous loaded month.
 
 Use the expand icon in the dashboard header to switch from the side panel to a
 full-viewport analysis workspace. The same control minimizes it back to the side
