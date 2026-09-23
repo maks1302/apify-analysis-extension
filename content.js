@@ -539,11 +539,16 @@
       return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
 
-    return `<div class="ae-daily-chart-wrap">
-      <svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily revenue contribution by Actor">${guides}${bars}</svg>
-      <div class="ae-stack-axis-title">Day of month</div>
-      <div class="ae-actor-legend">${legend}</div>
-    </div>`;
+    return {
+      html: `<div class="ae-daily-chart-wrap">
+        <svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily earnings by Actor">${guides}${bars}</svg>
+        <div class="ae-stack-axis-title">Day of month</div>
+        <div class="ae-actor-legend">${legend}</div>
+      </div>`,
+      series,
+      dates,
+      totalsByDate,
+    };
   }
 
   function dailyMixMarkup(data) {
@@ -564,20 +569,38 @@
       </div>`;
     }
 
+    const metricLabel = dailyMetric === "profitUsd" ? "profit" : dailyMetric === "costUsd" ? "cost" : "revenue";
+    const totalValue = chart.series.reduce((sum, item) => sum + item.total, 0);
+    const topActor = chart.series[0];
+    const topActorShare = totalValue ? topActor.total / totalValue : 0;
+    const topThreeShare = totalValue ? chart.series.slice(0, 3).reduce((sum, item) => sum + item.total, 0) / totalValue : 0;
+    const peakIndex = chart.totalsByDate.indexOf(Math.max(...chart.totalsByDate));
+    const peakDate = peakIndex >= 0 ? chart.dates[peakIndex] : "";
+    const peakValue = peakIndex >= 0 ? chart.totalsByDate[peakIndex] : 0;
+    const peakDateLabel = peakDate
+      ? new Date(`${peakDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : "No activity";
+
     return `<div class="ae-daily-mix">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading">
-          <div><span>Daily contribution by Actor</span><small>Stacked month-to-date values · hover a segment for details</small></div>
+          <div><span>Daily earnings by Actor</span><small>Compare each Actor’s revenue, profit, or cost by day</small></div>
           <div class="ae-metric-toggle">
             <button type="button" data-ae-metric="revenueUsd" class="${dailyMetric === "revenueUsd" ? "ae-active" : ""}">Revenue</button>
             <button type="button" data-ae-metric="profitUsd" class="${dailyMetric === "profitUsd" ? "ae-active" : ""}">Profit</button>
             <button type="button" data-ae-metric="costUsd" class="${dailyMetric === "costUsd" ? "ae-active" : ""}">Cost</button>
           </div>
         </div>
-        ${chart}
+        <div class="ae-stat-ledger ae-stat-ledger-4">
+          <article><span>Total ${escapeHtml(metricLabel)}</span><strong>${money(totalValue)}</strong><small>Across selected Actors</small></article>
+          <article><span>Highest ${escapeHtml(metricLabel)}</span><strong>${money(topActor.total)}</strong><small title="${escapeHtml(topActor.name)}">${escapeHtml(topActor.name)} · ${percent(topActorShare)}</small></article>
+          <article><span>Peak day</span><strong>${money(peakValue)}</strong><small>${escapeHtml(peakDateLabel)}</small></article>
+          <article><span>Share from top 3 Actors</span><strong>${percent(topThreeShare)}</strong><small>Combined share of total ${escapeHtml(metricLabel)}</small></article>
+        </div>
+        ${chart.html}
         ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Loaded ${captured} of ${total} Actors</span></div>` : ""}
       </section>
-      <div class="ae-chart-note">The tallest bars are your strongest days. Each color is one Actor; small contributors beyond the top 11 are grouped as Other.</div>
+      <div class="ae-chart-note">Each color represents one Actor. Contributors outside the top 11 are grouped as Other; hover any day for the complete ranked breakdown.</div>
     </div>`;
   }
 
@@ -676,14 +699,14 @@
     return `<div class="ae-daily-runs">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading ae-run-heading">
-          <div><span>Daily Actor operations</span><small>Stacked by Actor · select a run metric</small></div>
+          <div><span>Daily run activity by Actor</span><small>Compare run outcomes and result volume by day</small></div>
           <div class="ae-run-metric-toggle">
             ${Object.entries(runMetricLabels).map(([key, label]) => `<button type="button" data-ae-run-metric="${escapeHtml(key)}" class="${runMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
         </div>
         <div class="ae-run-summary ae-stat-ledger ae-stat-ledger-3">
           <article><span>${escapeHtml(runMetricLabels[runMetric])}</span><strong>${integer(totalValue)}</strong><small>Across loaded Actors</small></article>
-          <article><span>Actors with activity</span><strong>${integer(chart?.series.length || 0)}</strong><small>For this metric</small></article>
+          <article><span>Active Actors</span><strong>${integer(chart?.series.length || 0)}</strong><small>Actors reporting this metric</small></article>
           <article><span>Peak day</span><strong>${integer(peakValue)}</strong><small>${escapeHtml(peakDate || "No activity")}</small></article>
         </div>
         ${chart ? chart.html : `<div class="ae-run-empty"><strong>${unsupported ? "Daily run statistics unavailable" : status?.status === "waiting-request" ? "Waiting for Apify analytics" : `No ${escapeHtml(runMetricLabels[runMetric].toLowerCase())} recorded`}</strong><span>${unsupported ? escapeHtml(status?.message || "The endpoint request failed.") : status?.status === "waiting-request" ? "Reload the Monetization page or switch its month once." : status?.status === "loading" ? "Actor data is still loading." : "Choose another metric to inspect activity."}</span></div>`}
@@ -791,13 +814,13 @@
     return `<div class="ae-daily-users">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading ae-run-heading">
-          <div><span>Daily users by Actor</span><small>Actor-user occurrences${escapeHtml(coverage)} · the same person may appear under multiple Actors</small></div>
+          <div><span>Daily user activity by Actor</span><small>Actor-user occurrences${escapeHtml(coverage)} · the same person may appear under multiple Actors</small></div>
           <div class="ae-user-metric-toggle">
             ${Object.entries(userMetricLabels).map(([key, label]) => `<button type="button" data-ae-user-metric="${key}" class="${userMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
         </div>
         <div class="ae-run-summary ae-stat-ledger ae-stat-ledger-4">
-          <article><span>Total activity</span><strong>${integer(userOccurrenceTotal)}</strong><small>Actor-user occurrences</small></article>
+          <article><span>Total user activity</span><strong>${integer(userOccurrenceTotal)}</strong><small>Actor-user occurrences</small></article>
           <article><span>Paying users</span><strong>${integer(payingTotal)}</strong><small>Occurrences across selected Actors</small></article>
           <article><span>Free users</span><strong>${integer(freeTotal)}</strong><small>Occurrences across selected Actors</small></article>
           <article><span>Paying share</span><strong>${percent(payingShare)}</strong><small>Paying ÷ total activity</small></article>
@@ -898,13 +921,13 @@
     return `<div class="ae-quality-dashboard">
       <div class="ae-quality-summary ae-stat-ledger ae-stat-ledger-4">
         <article><span>Average quality</span><strong>${scored.length ? `${(averageQuality * 100).toFixed(1)}` : "—"}</strong><small>Across ${scored.length} scored Actors</small></article>
-        <article><span>Strong quality</span><strong>${integer(strongActors)}</strong><small>Score of 80 or higher</small></article>
+        <article><span>Actors above 80</span><strong>${integer(strongActors)}</strong><small>Quality score of 80 or higher</small></article>
         <article><span>Best percentile</span><strong>${scored.length ? `${(bestPercentile * 100).toFixed(1)}th` : "—"}</strong><small>Portfolio high point</small></article>
         <article><span>Action items</span><strong>${integer(actionItems)}</strong><small>Recommended improvements</small></article>
       </div>
       <section class="ae-quality-list-card">
         <div class="ae-card-heading ae-quality-heading">
-          <div><span>Actor quality</span><small>Store readiness, reliability, adoption, and user feedback</small></div>
+          <div><span>Actor quality details</span><small>Store readiness, reliability, adoption, and user feedback</small></div>
           <button type="button" data-ae-quality-refresh>${status?.status === "loading" ? `Loading ${status.completed}/${status.total}` : loaded.length ? "Refresh quality" : "Load quality"}</button>
         </div>
         <div class="ae-quality-list-head"><span>Actor</span><span>Quality</span><span>Success</span><span>Users</span><span>Rating</span><span>Saved</span><span></span></div>
@@ -982,7 +1005,7 @@
           <div class="ae-acquisition-metric"><strong>${item?.available ? integer(item.consolePageViews) : "—"}</strong><span>Console views</span></div>
           <div class="ae-acquisition-metric"><strong>${item?.available ? integer(item.viewingUsers) : "—"}</strong><span>Viewing users</span></div>
           <div class="ae-acquisition-metric ae-acquisition-runs"><strong>${item?.available ? integer(item.usersWithRun) : "—"}</strong><span>Users with run</span></div>
-          <div class="ae-acquisition-metric"><strong>${item?.available && item.viewingUsers ? percent(signal) : "—"}</strong><span>${item?.error ? "Unavailable" : item ? "Run/view signal" : status?.status === "loading" ? "Loading…" : "Not loaded"}</span></div>
+          <div class="ae-acquisition-metric"><strong>${item?.available && item.viewingUsers ? percent(signal) : "—"}</strong><span>${item?.error ? "Unavailable" : item ? "Run-to-view ratio" : status?.status === "loading" ? "Loading…" : "Not loaded"}</span></div>
           <span class="ae-quality-chevron">⌄</span>
         </button>
         ${details}
@@ -994,15 +1017,15 @@
         <article><span>Store page views</span><strong>${integer(totals.webPageViews)}</strong><small>Actor-level unique totals</small></article>
         <article><span>Console page views</span><strong>${integer(totals.consolePageViews)}</strong><small>Actor-level unique totals</small></article>
         <article><span>Viewing users</span><strong>${integer(totals.viewingUsers)}</strong><small>Across ${available.length} Actors</small></article>
-        <article><span>Users with run</span><strong>${integer(totals.usersWithRun)}</strong><small>${totals.viewingUsers ? `${percent(runViewSignal)} run/view signal` : "No viewing-user baseline"}</small></article>
+        <article><span>Users with a run</span><strong>${integer(totals.usersWithRun)}</strong><small>${totals.viewingUsers ? `${percent(runViewSignal)} run-to-view ratio` : "No viewing-user baseline"}</small></article>
       </div>
       <div class="ae-acquisition-insights">
-        <section><div class="ae-card-heading"><div><span>Acquisition sources</span><small>Portfolio mix weighted by Actor page views</small></div></div>${trafficBars(referrers, "referrer")}</section>
-        <section><div class="ae-card-heading"><div><span>Audience geography</span><small>Portfolio mix weighted by Actor page views</small></div></div>${trafficBars(countries, "country")}</section>
+        <section><div class="ae-card-heading"><div><span>Traffic sources</span><small>Portfolio mix weighted by Actor page views</small></div></div>${trafficBars(referrers, "referrer")}</section>
+        <section><div class="ae-card-heading"><div><span>Audience locations</span><small>Portfolio mix weighted by Actor page views</small></div></div>${trafficBars(countries, "country")}</section>
       </div>
       <section class="ae-acquisition-list-card">
         <div class="ae-card-heading ae-quality-heading">
-          <div><span>Actor acquisition</span><small>Actor-level unique counts · the same person may appear under multiple Actors</small></div>
+          <div><span>Acquisition by Actor</span><small>Actor-level unique counts · the same person may appear under multiple Actors</small></div>
           <button type="button" data-ae-marketing-refresh>${status?.status === "loading" ? `Loading ${status.completed}/${status.total}` : tracked.length ? "Refresh acquisition" : "Load acquisition"}</button>
         </div>
         <div class="ae-acquisition-list-head"><span>Actor</span><span>Store</span><span>Console</span><span>Viewing</span><span>Ran</span><span>Signal</span><span></span></div>
@@ -1011,7 +1034,7 @@
         ${status?.status === "complete" && status.failed ? `<div class="ae-quality-notice">${integer(status.failed)} Actor request${status.failed === 1 ? "" : "s"} could not be loaded. Use refresh to retry.</div>` : ""}
         ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Processed ${status.completed} of ${status.total} Actors</span></div>` : ""}
       </section>
-      <p class="ae-acquisition-footnote">Run/view signal compares two separately deduplicated cohorts and can exceed 100%; it is directional, not a strict conversion rate.</p>
+      <p class="ae-acquisition-footnote">Run-to-view ratio compares two separately deduplicated groups and can exceed 100%; use it as a directional indicator, not a conversion rate.</p>
     </div>`;
   }
 
@@ -1122,14 +1145,14 @@
 
     return `<div class="ae-actors-view">
       <div class="ae-actor-summary ae-stat-ledger ae-stat-ledger-4">
-        <article><span>Actor profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange !== null && profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? "No comparison" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% vs previous`}</small></article>
-        <article><span>Actor revenue</span><strong>${money(totals.revenue)}</strong><small>${actors.length} actors</small></article>
+        <article><span>Net profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange !== null && profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? "No comparison" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% vs previous`}</small></article>
+        <article><span>Revenue</span><strong>${money(totals.revenue)}</strong><small>${actors.length} Actors</small></article>
         <article><span>Paying users</span><strong>${integer(totals.users)}</strong><small>Sum across actors</small></article>
         <article><span>Total runs</span><strong>${integer(totals.runs)}</strong><small>For captured month</small></article>
       </div>
       <section class="ae-portfolio-card">
         <div class="ae-card-heading ae-section-heading">
-          <div><span>Revenue composition</span><small>Top Actors, month to date</small></div>
+          <div><span>Revenue, profit, and cost by Actor</span><small>Top Actors for the selected month</small></div>
           <div class="ae-legend"><i class="ae-green"></i>Net profit <i class="ae-orange"></i>Cost</div>
         </div>
         <div class="ae-portfolio-list">${portfolioBars || '<div class="ae-inline-empty">No revenue reported for this month.</div>'}</div>
@@ -1137,7 +1160,7 @@
       </section>
       <section class="ae-health-card">
         <div class="ae-card-heading ae-section-heading">
-          <div><span>Run health</span><small>Monthly totals · ranked by ${healthLabels[healthMetric]}</small></div>
+          <div><span>Run reliability by Actor</span><small>Monthly totals · ranked by ${healthLabels[healthMetric]}</small></div>
           <span class="ae-problem-count">${integer(unhealthyActors.reduce((sum, actor) => sum + actor[healthMetric], 0))} ${healthLabels[healthMetric]}</span>
         </div>
         <div class="ae-health-filters">
@@ -1152,7 +1175,7 @@
       </section>
       <section class="ae-actor-list-card">
         <div class="ae-card-heading ae-actor-heading">
-          <div><span>Profit by actor</span><small>Ranked by net profit</small></div>
+          <div><span>Actor performance table</span><small>Ranked by net profit</small></div>
           <small>Revenue, usage and reliability</small>
         </div>
         <div class="ae-actor-list">${rows}</div>
@@ -1345,7 +1368,7 @@
 
       <div class="ae-overview-primary-grid">
         <section class="ae-overview-card ae-overview-trend-card">
-          <div class="ae-card-heading"><div><span>Performance pulse</span><small>Daily portfolio economics · hover any day</small></div><div class="ae-legend"><i class="ae-purple"></i>Revenue <i class="ae-green"></i>Profit</div></div>
+          <div class="ae-card-heading"><div><span>Daily financial trend</span><small>Portfolio revenue and profit by day · hover for details</small></div><div class="ae-legend"><i class="ae-purple"></i>Revenue <i class="ae-green"></i>Profit</div></div>
           ${overviewSparkline(overviewData.daily)}
           <div class="ae-overview-trend-stats">
             <div><span>Latest revenue</span><strong>${money(latestDay.revenueUsd)}</strong><small>${escapeHtml(latestDay.date)}</small></div>
@@ -1355,26 +1378,26 @@
           </div>
         </section>
         <section class="ae-overview-card ae-overview-attention-card">
-          <div class="ae-card-heading"><div><span>Needs attention</span><small>${alerts.length ? `${alerts.length} prioritized portfolio signals` : "No urgent portfolio signals"}</small></div><button type="button" data-ae-go-to="runs">Run health →</button></div>
+          <div class="ae-card-heading"><div><span>Priority alerts</span><small>${alerts.length ? `${alerts.length} portfolio signals to review` : "No urgent portfolio signals"}</small></div><button type="button" data-ae-go-to="runs">Run activity →</button></div>
           <div class="ae-overview-alerts">${alertRows}</div>
         </section>
       </div>
 
       <div class="ae-overview-secondary-grid">
         <section class="ae-overview-card">
-          <div class="ae-card-heading"><div><span>Top contributors</span><small>Top 1: ${percent(concentration(1))} · Top 3: ${percent(concentration(3))}</small></div><button type="button" data-ae-go-to="actors">All Actors →</button></div>
+          <div class="ae-card-heading"><div><span>Top revenue Actors</span><small>Top 1: ${percent(concentration(1))} · Top 3: ${percent(concentration(3))}</small></div><button type="button" data-ae-go-to="actors">Actor performance →</button></div>
           <div class="ae-overview-contributors">${contributorRows}</div>
         </section>
         <section class="ae-overview-card">
-          <div class="ae-card-heading"><div><span>Actor momentum</span><small>${previous ? `${isCurrentMonth ? "Projected" : "Actual"} revenue vs ${escapeHtml(previous.month || "previous period")}` : "Requires a previous loaded month"}</small></div></div>
+          <div class="ae-card-heading"><div><span>Revenue change by Actor</span><small>${previous ? `${isCurrentMonth ? "Projected" : "Actual"} revenue vs ${escapeHtml(previous.month || "previous period")}` : "Requires a previous loaded month"}</small></div></div>
           <div class="ae-overview-movers">${moverRows}</div>
         </section>
       </div>
 
       <div class="ae-overview-snapshot-grid">
-        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-health-icon">✓</span><button type="button" data-ae-go-to="runs">Portfolio health →</button></div><strong>${percent(portfolioSuccess)}</strong><span>run success rate</span><div><b>${integer(problemActors)}</b> Actors with run issues · <b>${integer(totalRuns)}</b> total runs</div></section>
-        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-acquisition-icon">◎</span><button type="button" data-ae-go-to="acquisition">Acquisition →</button></div><strong>${integer(marketingTotals.runners)}</strong><span>Actor-users with a run</span><div><b>${integer(marketingTotals.views)}</b> page views · Top source: <b>${escapeHtml(topSource)}</b></div></section>
-        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-quality-icon">◇</span><button type="button" data-ae-go-to="quality">Quality →</button></div><strong>${qualities.length ? (averageQuality * 100).toFixed(1) : "—"}</strong><span>average quality score</span><div><b>${integer(readinessGaps)}</b> readiness gaps · <b>${integer(qualityActions)}</b> actions</div></section>
+        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-health-icon">✓</span><button type="button" data-ae-go-to="runs">Run reliability →</button></div><strong>${percent(portfolioSuccess)}</strong><span>run success rate</span><div><b>${integer(problemActors)}</b> Actors with run issues · <b>${integer(totalRuns)}</b> total runs</div></section>
+        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-acquisition-icon">◎</span><button type="button" data-ae-go-to="acquisition">Acquisition →</button></div><strong>${integer(marketingTotals.runners)}</strong><span>users who ran an Actor</span><div><b>${integer(marketingTotals.views)}</b> page views · Top source: <b>${escapeHtml(topSource)}</b></div></section>
+        <section class="ae-overview-snapshot"><div class="ae-overview-snapshot-head"><span class="ae-overview-snapshot-icon ae-quality-icon">◇</span><button type="button" data-ae-go-to="quality">Actor quality →</button></div><strong>${qualities.length ? (averageQuality * 100).toFixed(1) : "—"}</strong><span>average quality score</span><div><b>${integer(readinessGaps)}</b> readiness gaps · <b>${integer(qualityActions)}</b> actions</div></section>
       </div>
       <footer>Captured locally ${new Date(overviewData.capturedAt).toLocaleString()}</footer>
     </div>`;
@@ -1407,7 +1430,7 @@
     const shellStart = `<div class="ae-dashboard">
       <div class="ae-period-row">
         <div>
-          <div class="ae-eyebrow">Earnings overview</div>
+          <div class="ae-eyebrow">Actor portfolio</div>
           <h2>${escapeHtml(monthLabel)}</h2>
         </div>
         <div class="ae-dashboard-controls">
@@ -1431,12 +1454,12 @@
       ${loadState?.status === "error" ? `<div class="ae-month-error">${escapeHtml(loadState.message)}</div>` : ""}
       <nav class="ae-tabs" aria-label="Dashboard sections">
         <button type="button" data-ae-view="overview" class="${activeView === "overview" ? "ae-active" : ""}">Overview</button>
-        <button type="button" data-ae-view="daily" class="${activeView === "daily" ? "ae-active" : ""}">Daily mix <span>${Object.keys(data.actorDaily || {}).length || ""}</span></button>
-        <button type="button" data-ae-view="runs" class="${activeView === "runs" ? "ae-active" : ""}">Daily runs <span>${Object.keys(data.actorRunDaily || {}).length || ""}</span></button>
-        <button type="button" data-ae-view="users" class="${activeView === "users" ? "ae-active" : ""}">Daily users <span>${Object.keys(data.actorUserDaily || {}).length || ""}</span></button>
-        <button type="button" data-ae-view="actors" class="${activeView === "actors" ? "ae-active" : ""}">Actors <span>${pickedCount || ""}</span></button>
-        <button type="button" data-ae-view="quality" class="${activeView === "quality" ? "ae-active" : ""}">Quality <span>${actorsForPicker.filter((actor) => actorQuality[actor.id]).length || ""}</span></button>
-        <button type="button" data-ae-view="acquisition" class="${activeView === "acquisition" ? "ae-active" : ""}">Acquisition <span>${Object.keys(data.actorMarketing || {}).length || ""}</span></button>
+        <button type="button" data-ae-view="daily" class="${activeView === "daily" ? "ae-active" : ""}">Daily earnings <span>${Object.keys(data.actorDaily || {}).length || ""}</span></button>
+        <button type="button" data-ae-view="runs" class="${activeView === "runs" ? "ae-active" : ""}">Run activity <span>${Object.keys(data.actorRunDaily || {}).length || ""}</span></button>
+        <button type="button" data-ae-view="users" class="${activeView === "users" ? "ae-active" : ""}">User activity <span>${Object.keys(data.actorUserDaily || {}).length || ""}</span></button>
+        <button type="button" data-ae-view="actors" class="${activeView === "actors" ? "ae-active" : ""}">Actor performance <span>${pickedCount || ""}</span></button>
+        <button type="button" data-ae-view="quality" class="${activeView === "quality" ? "ae-active" : ""}">Actor quality <span>${actorsForPicker.filter((actor) => actorQuality[actor.id]).length || ""}</span></button>
+        <button type="button" data-ae-view="acquisition" class="${activeView === "acquisition" ? "ae-active" : ""}">Traffic &amp; acquisition <span>${Object.keys(data.actorMarketing || {}).length || ""}</span></button>
       </nav>`;
 
     if (!hasOverview) {
@@ -1615,7 +1638,7 @@
     const movement = (value, previousValue) => value === null || value === undefined
       ? `<small class="ae-muted">${previousValue === 0 ? "Prior day was $0" : "First reported day"}</small>`
       : `<small class="${value >= 0 ? "ae-up" : "ae-down"}">${value >= 0 ? "↑" : "↓"} ${Math.abs(value * 100).toFixed(1)}% vs prior day</small>`;
-    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>Performance pulse</strong></div><div><span>Margin</span><strong>${escapeHtml(percent(payload.margin))}</strong></div></div>
+    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>Daily financial trend</strong></div><div><span>Margin</span><strong>${escapeHtml(percent(payload.margin))}</strong></div></div>
       <div class="ae-pulse-tooltip-grid">
         <div><span>Revenue</span><strong>${escapeHtml(money(payload.revenueUsd))}</strong>${movement(payload.revenueChange, payload.previousRevenueUsd)}</div>
         <div><span>Net profit</span><strong>${escapeHtml(money(payload.profitUsd))}</strong>${movement(payload.profitChange, payload.previousProfitUsd)}</div>
