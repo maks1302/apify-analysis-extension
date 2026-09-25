@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/maks1302/apify-analysis-extension/security/advisories/new
+    about: Report authentication, data exposure, or origin-validation vulnerabilities privately.
+  - name: Chrome Web Store listing
+    url: https://chromewebstore.google.com/detail/actor-analytics-for-apify/alhjjaafelbmfphijdidjodejcjiccef
+    about: Install or review the current published release.
+

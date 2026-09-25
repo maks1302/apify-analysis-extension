@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible problem with the extension
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include Apify tokens, cookies, request headers, or private analytics
+        data. Report security issues privately as described in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      placeholder: "0.27.0"
+    validations:
+      required: true
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version and operating system
+      placeholder: "Chrome 141 on macOS"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation source
+      options:
+        - Chrome Web Store
+        - Unpacked main branch
+        - Unpacked fork
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use demo or redacted values only.
+      placeholder: |
+        1. Open Apify Monetization
+        2. Open Actor Analytics
+        3. Select...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Redacted console errors
+      render: shell
+

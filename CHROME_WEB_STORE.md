@@ -3,6 +3,9 @@
 This document contains ready-to-paste listing copy and a release checklist for
 Actor Analytics for Apify (by MintAPI).
 
+**Published listing:**
+https://chromewebstore.google.com/detail/actor-analytics-for-apify/alhjjaafelbmfphijdidjodejcjiccef
+
 ## 1. Finish the extension icons
 
 Chrome does not support SVG files as manifest icons. Export `logo.svg` as PNG
@@ -92,11 +95,15 @@ https://github.com/maks1302/apify-analysis-extension/issues
 
 ### Privacy policy URL
 
-Publish this repository publicly first, then use:
+The published listing currently uses:
 
 ```text
-https://github.com/maks1302/apify-analysis-extension/blob/main/PRIVACY.md
+https://mintapi.dev/privacy
 ```
+
+The repository also includes a product-specific [privacy policy](PRIVACY.md).
+Keep the website policy, repository policy, Store disclosures, and implementation
+consistent when data handling changes.
 
 ## 3. Privacy practices form
 
@@ -205,11 +212,17 @@ If the reviewer cannot create a suitable Apify account, provide a dedicated test
 account through the Chrome Web Store's secure reviewer credentials fields. Never
 put credentials in this repository or in the public listing.
 
-## 6. Create and upload the release ZIP
+## 6. Create and upload a release ZIP
 
-After adding the PNG icons and the manifest `icons` property, validate the unpacked
-extension in `chrome://extensions`, then create a ZIP with `manifest.json` at the
-archive root. Include only runtime files:
+Run the repository's release checks and packaging script:
+
+```bash
+node scripts/check-release.mjs
+./scripts/package-extension.sh
+```
+
+The generated ZIP is written to `dist/` with `manifest.json` at its root and only
+the runtime files included:
 
 ```text
 manifest.json
@@ -220,13 +233,13 @@ logo.svg
 icons/
 ```
 
-In the Chrome Web Store Developer Dashboard:
+For a Store update:
 
-1. Register the developer account and enable two-step verification.
-2. Choose **Add new item** and upload the ZIP.
-3. Complete **Store listing**, **Privacy practices**, **Distribution**, and
+1. Increase `version` in `manifest.json`.
+2. Test the unpacked extension and run the checks above.
+3. Open the existing item in the Chrome Web Store Developer Dashboard and upload
+   the generated ZIP under **Package**.
+4. Review **Store listing**, **Privacy practices**, **Distribution**, and
    **Test instructions**.
-4. Select public or unlisted visibility and the intended countries.
-5. Preview the listing, fix all dashboard warnings, and submit for review.
-
-For every later upload, increase `version` in `manifest.json` first.
+5. Preview the listing, fix all dashboard warnings, and submit the update for
+   review.
