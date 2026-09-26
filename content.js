@@ -16,6 +16,7 @@
   let dailyMetric = "revenueUsd";
   let healthMetric = "problemRuns";
   let runMetric = "FAILED";
+  let runInspectorStatus = "FAILED";
   let userMetric = "payingUsers";
   let selectedActorIds = null;
   let actorPickerOpen = false;
@@ -26,6 +27,10 @@
   let comparisonMonthRequest = null;
   const dailyLoadStatus = {};
   const runLoadStatus = {};
+  const sharedRunsByMonth = {};
+  const sharedRunsLoadStatus = {};
+  let sharedRunsRequestTimer = null;
+  let pendingSharedRunsSignature = "";
   const userLoadStatus = {};
   const qualityLoadStatus = {};
   const marketingLoadStatus = {};
@@ -68,6 +73,66 @@
 
   const actorSelected = (actorId) => selectedActorIds === null || selectedActorIds.has(actorId);
   const selectedActors = (data) => (data?.actorBreakdown?.actors || []).filter((actor) => actorSelected(actor.id));
+
+  function sharedRunsSelection(data) {
+    const allIds = (data?.actorBreakdown?.actors || []).map((actor) => actor.id);
+    const actorIds = selectedActorIds === null ? allIds : allIds.filter((id) => selectedActorIds.has(id));
+    return {
+      actorIds,
+      signature: selectedActorIds === null ? "all" : actorIds.slice().sort().join(",") || "none",
+    };
+  }
+
+  const sharedRunsCacheKey = (month, signature, runStatus) => `${month}|${signature}|${runStatus}`;
+
+  function requestSharedRuns(data, { force = false, immediate = false } = {}) {
+    if (!data?.month) return;
+    const selection = sharedRunsSelection(data);
+    const runStatuses = ["FAILED", "TIMED-OUT", "ABORTED", "SUCCEEDED"];
+    const requestKey = `${data.month}|${selection.signature}`;
+    const cacheKeys = runStatuses.map((runStatus) => sharedRunsCacheKey(data.month, selection.signature, runStatus));
+    if (!selection.actorIds.length) {
+      runStatuses.forEach((runStatus, index) => {
+        const cacheKey = cacheKeys[index];
+        sharedRunsByMonth[cacheKey] = {
+          runs: [],
+          matchingCount: 0,
+          isCapped: false,
+          scannedRuns: 0,
+          scannedActors: 0,
+          failedActors: 0,
+          loadedAt: new Date().toISOString(),
+          querySignature: selection.signature,
+          runStatus,
+        };
+        sharedRunsLoadStatus[cacheKey] = { status: "complete", message: "", querySignature: selection.signature, runStatus };
+      });
+      return;
+    }
+    const allLoaded = cacheKeys.every((cacheKey) => Boolean(sharedRunsByMonth[cacheKey]));
+    const hasLoading = cacheKeys.some((cacheKey) => sharedRunsLoadStatus[cacheKey]?.status === "loading");
+    const hasError = cacheKeys.some((cacheKey) => sharedRunsLoadStatus[cacheKey]?.status === "error");
+    if (!force && (allLoaded || hasLoading || hasError || pendingSharedRunsSignature === requestKey)) return;
+    if (sharedRunsRequestTimer !== null) window.clearTimeout(sharedRunsRequestTimer);
+    pendingSharedRunsSignature = requestKey;
+    const dispatch = () => {
+      sharedRunsRequestTimer = null;
+      pendingSharedRunsSignature = "";
+      runStatuses.forEach((runStatus, index) => {
+        sharedRunsLoadStatus[cacheKeys[index]] = { status: "loading", message: "", querySignature: selection.signature, runStatus };
+      });
+      window.postMessage({
+        source: MESSAGE_SOURCE,
+        type: "REQUEST_SHARED_RUNS",
+        month: data.month,
+        actorIds: selection.actorIds,
+        querySignature: selection.signature,
+      }, window.location.origin);
+      scheduleRender();
+    };
+    if (immediate) dispatch();
+    else sharedRunsRequestTimer = window.setTimeout(dispatch, 300);
+  }
 
   function localDateKey(date = new Date()) {
     const year = date.getFullYear();
@@ -363,6 +428,47 @@
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
     return daily.length ? daily : null;
+  }
+
+  function normalizeSharedRuns(payload) {
+    if (!payload || !Array.isArray(payload.data)) return null;
+    const allowedStatuses = new Set(["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"]);
+    const runs = payload.data.map((run) => {
+      const id = String(run?.id || run?._id || "");
+      const actorId = String(run?.actorId || run?.actId || "");
+      const status = String(run?.status || "").toUpperCase();
+      if (!id || !actorId || !allowedStatuses.has(status)) return null;
+      return {
+        id,
+        actorId,
+        status,
+        startedAt: String(run?.startedAt || ""),
+        finishedAt: String(run?.finishedAt || ""),
+        buildNumber: String(run?.buildNumber || ""),
+        exitCode: run?.exitCode === null || run?.exitCode === undefined ? null : number(run.exitCode),
+        durationMillis: number(run?.durationMillis),
+        runTimeSecs: number(run?.runTimeSecs),
+        memoryMbytes: number(run?.memoryMbytes),
+        memAvgBytes: number(run?.memAvgBytes),
+        memMaxBytes: number(run?.memMaxBytes),
+        cpuAvgUsage: number(run?.cpuAvgUsage),
+        cpuMaxUsage: number(run?.cpuMaxUsage),
+        computeUnits: number(run?.computeUnits),
+        resultCount: number(run?.resultCount),
+        isRunOfPayingUser: Boolean(run?.isRunOfPayingUser),
+      };
+    }).filter(Boolean).sort((a, b) => b.finishedAt.localeCompare(a.finishedAt));
+    return {
+      runs,
+      matchingCount: number(payload?.matchingCount ?? runs.length),
+      isCapped: Boolean(payload?.isCapped),
+      scannedRuns: number(payload?.scannedRuns),
+      scannedActors: number(payload?.scannedActors),
+      failedActors: number(payload?.failedActors),
+      loadedAt: new Date().toISOString(),
+      querySignature: String(payload?.querySignature || "all"),
+      runStatus: String(payload?.runStatus || "FAILED"),
+    };
   }
 
   async function saveActorRunDaily(month, actorId, daily) {
@@ -709,6 +815,109 @@
     };
   }
 
+  const inspectorStatusLabels = {
+    FAILED: "Failed",
+    "TIMED-OUT": "Timed out",
+    ABORTED: "Aborted",
+    SUCCEEDED: "Succeeded",
+  };
+
+  function formatRunDuration(run) {
+    const seconds = number(run.runTimeSecs) || number(run.durationMillis) / 1000;
+    if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = Math.round(seconds % 60);
+    return `${minutes}m ${remainder}s`;
+  }
+
+  function formatRunTimestamp(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "Unknown time";
+    return date.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  function formatMemory(bytes) {
+    return bytes > 0 ? `${(bytes / 1024 / 1024).toFixed(0)} MB` : "—";
+  }
+
+  function runDiagnosticSignals(run) {
+    const signals = [];
+    if (run.status === "TIMED-OUT") signals.push({ label: "Timeout", tone: "danger" });
+    if (run.exitCode !== null && run.exitCode !== 0) signals.push({ label: `Exit ${integer(run.exitCode)}`, tone: "danger" });
+    if (run.resultCount === 0) signals.push({ label: "No results", tone: "warning" });
+    const allocatedBytes = number(run.memoryMbytes) * 1024 * 1024;
+    if (allocatedBytes && number(run.memMaxBytes) / allocatedBytes >= .9) signals.push({ label: "Memory ≥90%", tone: "warning" });
+    if (number(run.cpuMaxUsage) >= 95) signals.push({ label: "CPU peak", tone: "neutral" });
+    return signals.slice(0, 3);
+  }
+
+  function runInspectorMarkup(data) {
+    const key = data?.month;
+    const selection = sharedRunsSelection(data);
+    const activeCacheKey = sharedRunsCacheKey(key, selection.signature, runInspectorStatus);
+    const payload = sharedRunsByMonth[activeCacheKey] || null;
+    const status = sharedRunsLoadStatus[activeCacheKey] || null;
+    const actorInfo = new Map((data?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
+    const selected = (payload?.runs || []).filter((run) => actorSelected(run.actorId));
+    const visibleRuns = selected;
+    const actorsRepresented = new Set(visibleRuns.map((run) => run.actorId)).size;
+    const averageDuration = visibleRuns.length
+      ? visibleRuns.reduce((sum, run) => sum + (number(run.runTimeSecs) || number(run.durationMillis) / 1000), 0) / visibleRuns.length
+      : 0;
+    const loadedLabel = payload?.loadedAt ? `Updated ${formatRunTimestamp(payload.loadedAt)}` : `Newest ${inspectorStatusLabels[runInspectorStatus].toLowerCase()} runs`;
+
+    const rows = visibleRuns.map((run) => {
+      const actor = actorInfo.get(run.actorId);
+      const actorName = actor?.title || actor?.name || run.actorId;
+      const runUrl = `https://console.apify.com/actors/${encodeURIComponent(run.actorId)}/runs/${encodeURIComponent(run.id)}`;
+      const memoryUse = run.memoryMbytes && run.memMaxBytes
+        ? `${formatMemory(run.memMaxBytes)} / ${integer(run.memoryMbytes)} MB`
+        : run.memoryMbytes ? `${integer(run.memoryMbytes)} MB allocated` : "—";
+      const signals = runDiagnosticSignals(run);
+      return `<tr>
+        <td><div class="ae-run-actor"><strong title="${escapeHtml(actorName)}">${escapeHtml(actorName)}</strong><span>${escapeHtml(formatRunTimestamp(run.finishedAt || run.startedAt))}</span></div></td>
+        <td><a class="ae-run-link" href="${escapeHtml(runUrl)}" target="_blank" rel="noopener noreferrer" title="Open run ${escapeHtml(run.id)} in Apify Console"><span>${escapeHtml(run.id)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 6.5 9.5M11 9v3H3V4h3"/></svg></a></td>
+        <td><strong>${escapeHtml(formatRunDuration(run))}</strong><span>${run.isRunOfPayingUser ? "Paying user" : "Free user"}</span></td>
+        <td><strong>${escapeHtml(run.buildNumber || "—")}</strong><span>${run.exitCode === null ? "No exit code" : `Exit ${integer(run.exitCode)}`}</span></td>
+        <td><strong>${integer(run.resultCount)}</strong><span>${number(run.computeUnits).toFixed(4)} CU</span></td>
+        <td><strong>${escapeHtml(memoryUse)}</strong><span>${run.cpuMaxUsage ? `${number(run.cpuMaxUsage).toFixed(0)}% CPU peak` : "No CPU sample"}</span></td>
+        <td><div class="ae-run-signals">${signals.length ? signals.map((signal) => `<span class="ae-run-signal ae-${signal.tone}">${escapeHtml(signal.label)}</span>`).join("") : '<span class="ae-run-signal ae-good">No obvious signal</span>'}</div></td>
+      </tr>`;
+    }).join("");
+
+    return `<section class="ae-run-inspector">
+      <div class="ae-card-heading ae-section-heading ae-run-inspector-heading">
+        <div><span>Recent run inspector</span><small>One request per Actor · latest 200 runs sampled · ${escapeHtml(loadedLabel)}</small></div>
+        <button type="button" data-ae-shared-runs-refresh ${status?.status === "loading" ? "disabled" : ""}>${status?.status === "loading" ? "Refreshing…" : "Refresh runs"}</button>
+      </div>
+      <div class="ae-run-inspector-tabs" role="tablist" aria-label="Filter recent runs by status">
+        ${Object.entries(inspectorStatusLabels).map(([runStatus, label]) => {
+          const tabKey = sharedRunsCacheKey(key, selection.signature, runStatus);
+          const tabPayload = sharedRunsByMonth[tabKey];
+          const tabStatus = sharedRunsLoadStatus[tabKey]?.status;
+          const badge = tabPayload ? integer(tabPayload.matchingCount) : tabStatus === "loading" ? "…" : "—";
+          return `<button type="button" role="tab" aria-selected="${runInspectorStatus === runStatus}" data-ae-inspector-status="${escapeHtml(runStatus)}" class="${runInspectorStatus === runStatus ? "ae-active" : ""}"><span>${escapeHtml(label)}</span><b>${escapeHtml(badge)}</b></button>`;
+        }).join("")}
+      </div>
+      <div class="ae-run-inspector-summary ae-stat-ledger ae-stat-ledger-3">
+        <article><span>${escapeHtml(inspectorStatusLabels[runInspectorStatus])} runs loaded</span><strong>${integer(visibleRuns.length)}</strong><small>${payload ? payload.isCapped ? `Newest ${integer(visibleRuns.length)} of ${integer(payload.matchingCount)} found in the sample` : `${integer(payload.matchingCount)} found in the recent sample` : "Waiting for this status"}</small></article>
+        <article><span>Actors represented</span><strong>${integer(actorsRepresented)}</strong><small>Within this status window</small></article>
+        <article><span>Average ${escapeHtml(inspectorStatusLabels[runInspectorStatus].toLowerCase())} duration</span><strong>${escapeHtml(formatRunDuration({ runTimeSecs: averageDuration }))}</strong><small>Within the current run filter</small></article>
+      </div>
+      ${status?.status === "loading" && !payload ? `<div class="ae-run-inspector-empty"><strong>Loading recent ${escapeHtml(inspectorStatusLabels[runInspectorStatus].toLowerCase())} runs…</strong><span>Fetching one latest-run sample for each selected Actor.</span></div>` : ""}
+      ${status?.status === "error" && !payload ? `<div class="ae-run-inspector-empty"><strong>Recent runs could not be loaded</strong><span>${escapeHtml(status.message || "Reload Apify Console and try again.")}</span></div>` : ""}
+      ${payload && !rows ? `<div class="ae-run-inspector-empty"><strong>No ${escapeHtml(inspectorStatusLabels[runInspectorStatus].toLowerCase())} runs in the latest feed</strong><span>Try another status, select more Actors, or refresh the feed.</span></div>` : ""}
+      ${rows ? `<div class="ae-run-table-wrap"><table class="ae-run-table"><thead><tr><th>Actor / finished</th><th>Run</th><th>Duration / user</th><th>Build / exit</th><th>Results / usage</th><th>Resources</th><th>Signals</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}
+      <div class="ae-run-inspector-note">The extension makes one request per selected Actor and classifies that Actor’s latest 200 runs locally across all four tabs.${payload ? ` This sample contains ${integer(payload.scannedRuns)} runs from ${integer(payload.scannedActors)} Actors${payload.failedActors ? `; ${integer(payload.failedActors)} Actor requests failed` : ""}.` : ""} The feed is live and independent of the month selected above. Signals highlight resource patterns for investigation; open the run to inspect its logs and input.</div>
+    </section>`;
+  }
+
   function dailyRunsMarkup(data) {
     const chart = stackedRunChart(data);
     const status = runLoadStatus[data?.month];
@@ -737,6 +946,7 @@
         ${chart ? chart.html : `<div class="ae-run-empty"><strong>${unsupported ? "Daily run statistics unavailable" : status?.status === "waiting-request" ? "Waiting for Apify analytics" : `No ${escapeHtml(runMetricLabels[runMetric].toLowerCase())} recorded`}</strong><span>${unsupported ? escapeHtml(status?.message || "The endpoint request failed.") : status?.status === "waiting-request" ? "Reload the Monetization page or switch its month once." : status?.status === "loading" ? "Actor data is still loading." : "Choose another metric to inspect activity."}</span></div>`}
         ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Loaded ${captured} of ${totalActors} Actors</span></div>` : ""}
       </section>
+      ${runInspectorMarkup(data)}
     </div>`;
   }
 
@@ -1799,6 +2009,7 @@
       const needsMarketing = (data?.actorBreakdown?.actors || []).some((actor) => !data?.actorMarketing?.[actor.id]);
       if (needsMarketing) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
     }
+    if (view === "runs") requestSharedRuns(data);
     render();
   }
 
@@ -1885,6 +2096,7 @@
         window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${comparisonKey}-01`, purpose: "comparison" }, window.location.origin);
       }
     }
+    if (panelOpen && activeView === "runs") requestSharedRuns(data);
     const content = root.querySelector("#ae-panel-content");
     const barTooltip = root.querySelector("#ae-bar-tooltip");
     if (barTooltip) barTooltip.hidden = true;
@@ -1985,6 +2197,17 @@
         render();
       });
     });
+    content.querySelectorAll("[data-ae-inspector-status]").forEach((button) => {
+      button.addEventListener("click", () => {
+        runInspectorStatus = button.dataset.aeInspectorStatus;
+        render();
+      });
+    });
+    content.querySelector("[data-ae-shared-runs-refresh]")?.addEventListener("click", () => {
+      if (!data?.month) return;
+      requestSharedRuns(data, { force: true, immediate: true });
+      render();
+    });
     content.querySelectorAll("[data-ae-user-metric]").forEach((button) => {
       button.addEventListener("click", () => {
         userMetric = button.dataset.aeUserMetric;
@@ -2053,6 +2276,31 @@
           completed: number(event.data.completed),
           total: number(event.data.total),
           message: String(event.data.message || ""),
+        };
+        scheduleRender();
+      }
+    } else if (event.data?.type === "SHARED_RUNS_DATA") {
+      const key = String(event.data.month || "").slice(0, 7);
+      const runStatus = String(event.data.runStatus || "FAILED");
+      const querySignature = String(event.data.querySignature || "all");
+      const payload = normalizeSharedRuns({ ...event.data.payload, querySignature, runStatus });
+      if (key && payload) {
+        const cacheKey = sharedRunsCacheKey(key, querySignature, runStatus);
+        sharedRunsByMonth[cacheKey] = payload;
+        sharedRunsLoadStatus[cacheKey] = { status: "complete", message: "", querySignature, runStatus };
+        scheduleRender();
+      }
+    } else if (event.data?.type === "SHARED_RUNS_STATUS") {
+      const key = String(event.data.month || "").slice(0, 7);
+      if (key) {
+        const querySignature = String(event.data.querySignature || "all");
+        const runStatus = String(event.data.runStatus || "FAILED");
+        const cacheKey = sharedRunsCacheKey(key, querySignature, runStatus);
+        sharedRunsLoadStatus[cacheKey] = {
+          status: String(event.data.status || "error"),
+          message: String(event.data.message || ""),
+          querySignature,
+          runStatus,
         };
         scheduleRender();
       }

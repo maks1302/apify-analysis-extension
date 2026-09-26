@@ -13,6 +13,8 @@ account, including:
 
 - Actor revenue, costs, profit, margin, pricing, and other monetization metrics.
 - Actor runs, results, user counts, quality signals, and acquisition statistics.
+- Recent-run operational details such as status, timestamps, duration, build,
+  exit code, result count, compute usage, and sampled CPU and memory usage.
 - Actor names, identifiers, images, and related metadata shown by Apify Console.
 - The active Apify request context needed to request the same analytics from
   Apify's Console backend.
@@ -29,6 +31,11 @@ extension's storage or removes the extension.
 Authentication headers or tokens are not written to extension storage. The active
 Apify request context is held only in page memory while the Apify Console page is
 open and is discarded when that page is closed or reloaded.
+
+The recent-run inspector is also memory-only and is discarded on page reload.
+The extension removes run user IDs, worker IP addresses, container identifiers,
+and other internal runtime identifiers before recent-run data reaches the
+dashboard. Those fields are neither displayed nor stored by the extension.
 
 ## Network activity and sharing
 

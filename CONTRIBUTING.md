@@ -35,6 +35,12 @@ There are no runtime dependencies or build step.
 - Month/year selection and Actor filtering work.
 - Actor and Help popovers close on outside click and Escape.
 - Daily tooltips show a complete, sorted Actor breakdown.
+- Run inspector status tabs filter independently from the monthly chart, refresh
+  correctly, and open the expected Apify run in a new tab.
+- The run inspector makes one shared-runs request per selected Actor and reuses
+  that Actor's latest-run sample across every status tab.
+- Recent runs are not written to `chrome.storage.local`, and run user IDs or
+  internal worker/network identifiers do not cross into the dashboard payload.
 - Current-month charts stop at the current day.
 - Light and dark themes remain readable.
 - No request is made to a non-Apify analytics host.
@@ -56,4 +62,3 @@ Do not add:
 
 By contributing, you agree that your contribution is licensed under the MIT
 License used by this repository.
-

@@ -11,6 +11,7 @@
   const profitRequestByMonth = new Map();
   const loadingMonths = new Set();
   const runLoadingMonths = new Set();
+  const sharedRunsLoadingMonths = new Set();
   const userLoadingMonths = new Set();
   const qualityLoadingMonths = new Set();
   const qualityRequestedMonths = new Set();
@@ -36,6 +37,152 @@
       return await originalFetch(target.href, { ...init, signal: controller.signal });
     } finally {
       window.clearTimeout(timeoutId);
+    }
+  };
+
+  const sanitizeSharedRuns = (payload) => {
+    const numeric = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const data = Array.isArray(payload?.data) ? payload.data.map((run) => ({
+      id: String(run?._id || ""),
+      actorId: String(run?.actId || ""),
+      status: String(run?.status || ""),
+      startedAt: String(run?.startedAt || ""),
+      finishedAt: String(run?.finishedAt || ""),
+      buildNumber: String(run?.buildNumber || ""),
+      exitCode: run?.exitCode === null || run?.exitCode === undefined ? null : numeric(run.exitCode),
+      durationMillis: numeric(run?.stats?.durationMillis),
+      runTimeSecs: numeric(run?.stats?.runTimeSecs),
+      memoryMbytes: numeric(run?.options?.memoryMbytes),
+      memAvgBytes: numeric(run?.stats?.memAvgBytes),
+      memMaxBytes: numeric(run?.stats?.memMaxBytes),
+      cpuAvgUsage: numeric(run?.stats?.cpuAvgUsage),
+      cpuMaxUsage: numeric(run?.stats?.cpuMaxUsage),
+      computeUnits: numeric(run?.stats?.computeUnits),
+      resultCount: numeric(run?.dataset?.cleanItemCount),
+      isRunOfPayingUser: Boolean(run?.isRunOfPayingUser),
+    })).filter((run) => run.id && run.actorId) : [];
+    return { data };
+  };
+
+  const loadSharedRuns = async (month, requestedActorIds, querySignature = "all") => {
+    const key = monthKey(month);
+    const runStatuses = ["FAILED", "TIMED-OUT", "ABORTED", "SUCCEEDED"];
+    const knownActors = actorsByMonth.get(key);
+    const requestedIds = new Set(Array.isArray(requestedActorIds) ? requestedActorIds.map(String) : []);
+    const actors = requestedIds.size ? knownActors?.filter((actor) => requestedIds.has(actor.id)) : knownActors;
+    const template = profitRequestByMonth.get(key) || latestProfitTemplate;
+    const loadingKey = `${key}:${querySignature}`;
+    if (!key || sharedRunsLoadingMonths.has(loadingKey)) return;
+    if (!actors?.length || !template) {
+      runStatuses.forEach((runStatus) => post({
+          type: "SHARED_RUNS_STATUS",
+          month: key,
+          querySignature,
+          runStatus,
+          status: "error",
+          message: !actors?.length
+            ? "Waiting for the Actor breakdown for this month."
+            : "Waiting for an authenticated Apify analytics request.",
+        }));
+      return;
+    }
+
+    sharedRunsLoadingMonths.add(loadingKey);
+    runStatuses.forEach((runStatus) => post({
+      type: "SHARED_RUNS_STATUS",
+      month: key,
+      querySignature,
+      runStatus,
+      status: "loading",
+    }));
+    try {
+      const loadActor = async (actor) => {
+        const url = new URL("/actor-analytics/shared-runs", template.url);
+        url.search = "";
+        url.searchParams.set("actorIds[0]", actor.id);
+        url.searchParams.set("limit", "200");
+        url.searchParams.set("sort[finishedAt]", "-1");
+        const response = await loadWithTimeout(url.href, template.init);
+        if (!response.ok) {
+          let detail = "";
+          try {
+            const errorPayload = await response.clone().json();
+            const message = Array.isArray(errorPayload?.message)
+              ? errorPayload.message.join("; ")
+              : errorPayload?.message || errorPayload?.error;
+            detail = typeof message === "string" ? message.slice(0, 240) : "";
+          } catch {
+            // Status alone is enough when Apify does not return a JSON error body.
+          }
+          throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+        }
+        const sanitized = sanitizeSharedRuns(await response.json());
+        return {
+          data: sanitized.data.filter((run) => run.actorId === actor.id),
+        };
+      };
+
+      const actorResults = new Array(actors.length);
+      const failedActors = [];
+      let actorCursor = 0;
+      const actorWorker = async () => {
+        while (actorCursor < actors.length) {
+          const actorIndex = actorCursor;
+          actorCursor += 1;
+          try {
+            actorResults[actorIndex] = await loadActor(actors[actorIndex]);
+          } catch (error) {
+            failedActors.push({
+              actorId: actors[actorIndex].id,
+              message: String(error?.message || "Request failed"),
+            });
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, actors.length) }, actorWorker));
+
+      const successfulResults = actorResults.filter(Boolean);
+      if (!successfulResults.length) {
+        throw new Error(failedActors[0]?.message || "Recent runs failed to load");
+      }
+
+      const allRuns = successfulResults.flatMap((result) => result.data);
+      runStatuses.forEach((runStatus) => {
+        const seenRunIds = new Set();
+        const matches = allRuns
+          .filter((run) => run.status === runStatus)
+          .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
+          .filter((run) => {
+            if (seenRunIds.has(run.id)) return false;
+            seenRunIds.add(run.id);
+            return true;
+          });
+        post({
+          type: "SHARED_RUNS_DATA",
+          month: key,
+          querySignature,
+          runStatus,
+          payload: {
+            data: matches.slice(0, 200),
+            matchingCount: matches.length,
+            isCapped: matches.length > 200,
+            scannedRuns: allRuns.length,
+            scannedActors: successfulResults.length,
+            failedActors: failedActors.length,
+          },
+        });
+      });
+    } catch (error) {
+      runStatuses.forEach((runStatus) => post({
+          type: "SHARED_RUNS_STATUS",
+          month: key,
+          querySignature,
+          runStatus,
+          status: "error",
+          message: String(error?.message || "Recent runs failed to load"),
+        }));
+    } finally {
+      sharedRunsLoadingMonths.delete(loadingKey);
     }
   };
 
@@ -529,6 +676,13 @@
       const key = monthKey(event.data.month);
       if (key) marketingRequestedMonths.add(key);
       void loadActorMarketing(key);
+    }
+    if (event.data?.type === "REQUEST_SHARED_RUNS") {
+      void loadSharedRuns(
+        event.data.month,
+        event.data.actorIds,
+        String(event.data.querySignature || "all"),
+      );
     }
   });
 })();

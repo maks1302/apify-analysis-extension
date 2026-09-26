@@ -56,6 +56,7 @@ KEY FEATURES
 • Overview with portfolio revenue, costs, net profit, margin, performance alerts, and month-over-month Actor trends
 • Daily stacked charts showing each Actor's contribution to revenue, profit, and costs
 • Daily run activity for successful, failed, aborted, timed-out, total runs, and results
+• Recent run inspector sampling each Actor's latest 200 runs, with direct Apify links, exit codes, resource usage, and diagnostic signals
 • Daily paying and free user activity by Actor
 • Actor performance rankings with revenue, profit, cost, usage, and reliability metrics
 • Actor quality details including scores, ratings, reviews, bookmarks, praises, and suggested improvements

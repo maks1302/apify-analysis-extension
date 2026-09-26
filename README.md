@@ -31,8 +31,9 @@ data or connecting another analytics service.
 - **Portfolio overview** — revenue, costs, profit, margin, pacing, alerts, and
   month-over-month Actor trends.
 - **Daily earnings** — stacked revenue, profit, and cost contributions by Actor.
-- **Run activity** — failed, aborted, timed-out, successful, total runs, and
-  results by Actor and day.
+- **Run activity and inspector** — daily run outcomes by Actor plus a live,
+  status-filtered view over each Actor's latest 200 runs with direct links, exit
+  codes, resource usage, and diagnostic signals.
 - **User activity** — daily paying, free, and total Actor-user occurrences.
 - **Actor performance** — financial and reliability rankings with monthly trends.
 - **Actor quality** — quality scores, ratings, reviews, bookmarks, praises, and
@@ -52,6 +53,8 @@ only on `https://console.apify.com/*`.
 - Authentication context stays in page memory and is used only for requests to
   Apify's own Console backend.
 - Authentication headers and tokens are never persisted by the extension.
+- Recent-run details are kept only in page memory. User IDs, worker IPs, and
+  internal runtime identifiers are discarded before the dashboard receives them.
 - There is no telemetry, behavioral tracking, advertising, or third-party
   analytics SDK.
 - No data is sent to MintAPI or another developer-controlled service.
