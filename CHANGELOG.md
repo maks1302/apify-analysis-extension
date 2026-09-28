@@ -17,6 +17,9 @@ Notable project changes are documented here.
   automatic cleanup for previously stored aggregate series.
 - Made Actor colors deterministic from the Actor ID so legends, stacked bars, and
   tooltips stay consistent across earnings, run activity, and user activity views.
+- Added interactive Actor legends that highlight the matching stacked segments
+  on hover or keyboard focus, including the aggregated Other segment, and aligned
+  bar tooltips with the same visible Actor/Other grouping.
 
 ## 0.27.0 — 2026-09-24
 

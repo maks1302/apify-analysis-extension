@@ -639,6 +639,8 @@
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   }
 
+  const otherActorColor = "#737B88";
+
   function stackedActorChart(data) {
     const actorDaily = data?.actorDaily || {};
     const actorInfo = new Map((data?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
@@ -677,19 +679,23 @@
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
       let yBottom = plotTop + plotHeight;
-      const tooltipItems = series.map((item) => ({
-        name: item.name,
-        value: number(values.get(item.id)?.get(date)),
-        color: actorColor(item.id),
-      })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
+      const contributorCount = series.filter((item) => number(values.get(item.id)?.get(date)) > 0).length;
+      const tooltipItems = chartSeries.map((item) => {
+        const groupedContributors = item.grouped?.filter((child) => number(values.get(child.id)?.get(date)) > 0) || [];
+        return {
+          name: item.grouped ? `Other (${groupedContributors.length} Actors)` : item.name,
+          value: valueFor(item, date),
+          color: item.id === "other" ? otherActorColor : actorColor(item.id),
+        };
+      }).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
-        const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment"></rect>`;
+        const color = item.id === "other" ? otherActorColor : actorColor(item.id);
+        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}"></rect>`;
       }).join("");
       const tooltipData = escapeHtml(JSON.stringify({
         kind: "money",
@@ -697,6 +703,8 @@
         label: dailyMetric === "profitUsd" ? "Profit" : dailyMetric === "costUsd" ? "Cost" : "Revenue",
         total: dayTotal,
         items: tooltipItems,
+        contributorCount,
+        hasOther: remaining.length > 0,
       }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
       const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
@@ -705,8 +713,8 @@
     }).join("");
 
     const legend = chartSeries.map((item) => {
-      const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
-      return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
+      const color = item.id === "other" ? otherActorColor : actorColor(item.id);
+      return `<span title="${escapeHtml(item.name)}" tabindex="0" data-ae-legend-actor="${escapeHtml(item.id)}" aria-label="Highlight ${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
 
     return {
@@ -821,29 +829,33 @@
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
       let yBottom = plotTop + plotHeight;
-      const tooltipItems = series.map((item) => ({
-        name: item.name,
-        value: number(values.get(item.id)?.get(date)),
-        color: actorColor(item.id),
-      })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
+      const contributorCount = series.filter((item) => number(values.get(item.id)?.get(date)) > 0).length;
+      const tooltipItems = chartSeries.map((item) => {
+        const groupedContributors = item.grouped?.filter((child) => number(values.get(child.id)?.get(date)) > 0) || [];
+        return {
+          name: item.grouped ? `Other (${groupedContributors.length} Actors)` : item.name,
+          value: valueFor(item, date),
+          color: item.id === "other" ? otherActorColor : actorColor(item.id),
+        };
+      }).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
-        const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment"></rect>`;
+        const color = item.id === "other" ? otherActorColor : actorColor(item.id);
+        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}"></rect>`;
       }).join("");
-      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: runMetricLabels[runMetric], total: dayTotal, items: tooltipItems }));
+      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: runMetricLabels[runMetric], total: dayTotal, items: tooltipItems, contributorCount, hasOther: remaining.length > 0 }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
       const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
       return `${segments}${hitArea}${label}`;
     }).join("");
     const legend = chartSeries.map((item) => {
-      const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
-      return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
+      const color = item.id === "other" ? otherActorColor : actorColor(item.id);
+      return `<span title="${escapeHtml(item.name)}" tabindex="0" data-ae-legend-actor="${escapeHtml(item.id)}" aria-label="Highlight ${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
 
     return {
@@ -1035,29 +1047,33 @@
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
       let yBottom = plotTop + plotHeight;
-      const tooltipItems = series.map((item) => ({
-        name: item.name,
-        value: number(values.get(item.id)?.get(date)),
-        color: actorColor(item.id),
-      })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
+      const contributorCount = series.filter((item) => number(values.get(item.id)?.get(date)) > 0).length;
+      const tooltipItems = chartSeries.map((item) => {
+        const groupedContributors = item.grouped?.filter((child) => number(values.get(child.id)?.get(date)) > 0) || [];
+        return {
+          name: item.grouped ? `Other (${groupedContributors.length} Actors)` : item.name,
+          value: valueFor(item, date),
+          color: item.id === "other" ? otherActorColor : actorColor(item.id),
+        };
+      }).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
-        const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment"></rect>`;
+        const color = item.id === "other" ? otherActorColor : actorColor(item.id);
+        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}"></rect>`;
       }).join("");
-      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: userMetricLabels[userMetric], total: dayTotal, items: tooltipItems }));
+      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: userMetricLabels[userMetric], total: dayTotal, items: tooltipItems, contributorCount, hasOther: remaining.length > 0 }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
       const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
       return `${segments}${hitArea}${label}`;
     }).join("");
     const legend = chartSeries.map((item) => {
-      const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
-      return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
+      const color = item.id === "other" ? otherActorColor : actorColor(item.id);
+      return `<span title="${escapeHtml(item.name)}" tabindex="0" data-ae-legend-actor="${escapeHtml(item.id)}" aria-label="Highlight ${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
     return {
       html: `<div class="ae-daily-chart-wrap"><svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily ${escapeHtml(userMetricLabels[userMetric])} by Actor">${guides}${bars}</svg><div class="ae-stack-axis-title">Day of month</div><div class="ae-actor-legend">${legend}</div></div>`,
@@ -2083,9 +2099,33 @@
       </div>`;
     }).join("") : "";
 
-    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>${escapeHtml(payload.label)}</strong></div><div><span>Total</span><strong>${escapeHtml(valueFormatter(total))}</strong></div></div><div class="ae-tooltip-columns"><span>Actor</span><span>Share</span><span>Value</span></div><div class="ae-tooltip-list">${rows || '<div class="ae-tooltip-empty">No activity</div>'}</div><div class="ae-tooltip-footer">${payload.items?.length || 0} contributing Actors · sorted highest first</div>`;
+    const contributorCount = number(payload.contributorCount ?? payload.items?.length);
+    const groupingNote = payload.hasOther ? " · Other is aggregated" : "";
+    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>${escapeHtml(payload.label)}</strong></div><div><span>Total</span><strong>${escapeHtml(valueFormatter(total))}</strong></div></div><div class="ae-tooltip-columns"><span>Actor / group</span><span>Share</span><span>Value</span></div><div class="ae-tooltip-list">${rows || '<div class="ae-tooltip-empty">No activity</div>'}</div><div class="ae-tooltip-footer">${integer(contributorCount)} contributing Actors${escapeHtml(groupingNote)} · sorted highest first</div>`;
     tooltip.hidden = false;
     positionBarTooltip(event, tooltip);
+  }
+
+  function setStackLegendHighlight(chart, actorId = "") {
+    if (!chart) return;
+    const hasHighlight = Boolean(actorId);
+    chart.classList.toggle("ae-stack-highlight-active", hasHighlight);
+    chart.querySelectorAll("[data-ae-stack-actor]").forEach((segment) => {
+      const selected = hasHighlight && segment.dataset.aeStackActor === actorId;
+      segment.classList.toggle("ae-stack-highlighted", selected);
+      segment.classList.toggle("ae-stack-dimmed", hasHighlight && !selected);
+    });
+    chart.querySelectorAll("[data-ae-legend-actor]").forEach((legendItem) => {
+      const selected = hasHighlight && legendItem.dataset.aeLegendActor === actorId;
+      legendItem.classList.toggle("ae-stack-highlighted", selected);
+      legendItem.classList.toggle("ae-stack-dimmed", hasHighlight && !selected);
+    });
+  }
+
+  function restoreStackLegendHighlight(chart) {
+    const activeItem = chart?.querySelector("[data-ae-legend-actor]:hover")
+      || chart?.querySelector("[data-ae-legend-actor]:focus");
+    setStackLegendHighlight(chart, activeItem?.dataset.aeLegendActor || "");
   }
 
   function showPulseTooltip(event, payload, tooltip) {
@@ -2263,6 +2303,17 @@
       hitArea.addEventListener("mouseenter", (event) => showBarTooltip(event, payload, barTooltip));
       hitArea.addEventListener("mousemove", (event) => positionBarTooltip(event, barTooltip));
       hitArea.addEventListener("mouseleave", () => { barTooltip.hidden = true; });
+    });
+    content.querySelectorAll("[data-ae-legend-actor]").forEach((legendItem) => {
+      const chart = legendItem.closest(".ae-daily-chart-wrap");
+      legendItem.addEventListener("mouseenter", () => {
+        setStackLegendHighlight(chart, legendItem.dataset.aeLegendActor);
+      });
+      legendItem.addEventListener("mouseleave", () => restoreStackLegendHighlight(chart));
+      legendItem.addEventListener("focus", () => {
+        setStackLegendHighlight(chart, legendItem.dataset.aeLegendActor);
+      });
+      legendItem.addEventListener("blur", () => restoreStackLegendHighlight(chart));
     });
     content.querySelectorAll("[data-ae-pulse-tooltip]").forEach((hitArea) => {
       let payload;

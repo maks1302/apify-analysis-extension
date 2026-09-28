@@ -250,16 +250,21 @@
 .ae-metric-toggle button { background: transparent; border: 0; border-radius: 6px; color: var(--ae-muted); cursor: pointer; font: 700 9px Inter, sans-serif; padding: 6px 10px; }
 .ae-metric-toggle button.ae-active { background: var(--ae-purple); color: white; }
 .ae-stacked-chart { display: block; height: auto; overflow: visible; width: 100%; }
-.ae-stack-segment { opacity: .92; transition: opacity 120ms ease; }
+.ae-stack-segment { opacity: .92; transition: filter 150ms ease, opacity 150ms ease, stroke 150ms ease; }
 .ae-stack-segment:hover { opacity: 1; outline: 1px solid rgba(255,255,255,.65); }
+.ae-stack-highlight-active .ae-stack-segment.ae-stack-dimmed { opacity: .14; }
+.ae-stack-highlight-active .ae-stack-segment.ae-stack-highlighted { filter: brightness(1.16) saturate(1.08); opacity: 1; stroke: rgba(255,255,255,.72); stroke-width: .75px; }
 .ae-bar-hit { cursor: crosshair; fill: transparent; pointer-events: all; }
 .ae-bar-hit:hover { fill: rgba(255,255,255,.025); }
 .ae-stack-tick { fill: #6f6f80; font: 8px Inter, sans-serif; }
 .ae-stack-date { fill: #858596; font: 8px Inter, sans-serif; }
 .ae-stack-axis-title { color: #696979; font-size: 8px; margin-top: -6px; text-align: center; }
 .ae-actor-legend { display: flex; flex-wrap: wrap; gap: 8px 13px; margin-top: 16px; }
-.ae-actor-legend span { align-items: center; color: #aaaaba; display: flex; font-size: 8px; gap: 5px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ae-actor-legend span { align-items: center; border-radius: 4px; color: #aaaaba; cursor: pointer; display: flex; font-size: 8px; gap: 5px; max-width: 170px; outline: 0; overflow: hidden; padding: 2px 4px; text-overflow: ellipsis; transition: background 150ms ease, color 150ms ease, opacity 150ms ease; white-space: nowrap; }
 .ae-actor-legend i { border-radius: 2px; display: block; flex: 0 0 auto; height: 7px; width: 7px; }
+.ae-stack-highlight-active .ae-actor-legend span.ae-stack-dimmed { opacity: .32; }
+.ae-stack-highlight-active .ae-actor-legend span.ae-stack-highlighted { background: rgba(255,255,255,.07); color: #f2f2f7; opacity: 1; }
+.ae-actor-legend span:focus-visible { box-shadow: 0 0 0 1px var(--ae-blue); }
 .ae-load-progress { background: rgba(255,255,255,.055); border-radius: 99px; height: 4px; margin-top: 16px; position: relative; }
 .ae-load-progress i { background: linear-gradient(90deg, var(--ae-purple), var(--ae-green)); border-radius: inherit; display: block; height: 100%; transition: width 180ms ease; }
 .ae-load-progress span { color: var(--ae-muted); font-size: 8px; position: absolute; right: 0; top: 8px; }
