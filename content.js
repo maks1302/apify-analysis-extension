@@ -696,14 +696,16 @@
         color: actorColor(item.id),
       })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
+      const valueLabelY = Math.max(plotTop + 7, plotTop + plotHeight - (dayTotal / maxValue) * plotHeight - 3);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
         const color = actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}"></rect>`;
+        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactMoney(value))}"></rect>`;
       }).join("");
+      const valueLabel = `<text x="${(x + barWidth / 2).toFixed(2)}" y="${valueLabelY.toFixed(2)}" text-anchor="middle" class="ae-stack-value-label" data-ae-stack-value-label="${dateIndex}" aria-hidden="true"></text>`;
       const tooltipData = escapeHtml(JSON.stringify({
         kind: "money",
         date,
@@ -715,7 +717,7 @@
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
       const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
-      return `${segments}${hitArea}${label}`;
+      return `${segments}${valueLabel}${hitArea}${label}`;
     }).join("");
 
     const legend = chartLegendMarkup(series, "earnings");
@@ -835,19 +837,21 @@
         color: actorColor(item.id),
       })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
+      const valueLabelY = Math.max(plotTop + 7, plotTop + plotHeight - (dayTotal / maxValue) * plotHeight - 3);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
         const color = actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}"></rect>`;
+        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactInteger(value))}"></rect>`;
       }).join("");
+      const valueLabel = `<text x="${(x + barWidth / 2).toFixed(2)}" y="${valueLabelY.toFixed(2)}" text-anchor="middle" class="ae-stack-value-label" data-ae-stack-value-label="${dateIndex}" aria-hidden="true"></text>`;
       const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: runMetricLabels[runMetric], total: dayTotal, items: tooltipItems, contributorCount }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
       const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
-      return `${segments}${hitArea}${label}`;
+      return `${segments}${valueLabel}${hitArea}${label}`;
     }).join("");
     const legend = chartLegendMarkup(series, "runs");
 
@@ -1043,19 +1047,21 @@
         color: actorColor(item.id),
       })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
+      const valueLabelY = Math.max(plotTop + 7, plotTop + plotHeight - (dayTotal / maxValue) * plotHeight - 3);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
         const color = actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}"></rect>`;
+        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactInteger(value))}"></rect>`;
       }).join("");
+      const valueLabel = `<text x="${(x + barWidth / 2).toFixed(2)}" y="${valueLabelY.toFixed(2)}" text-anchor="middle" class="ae-stack-value-label" data-ae-stack-value-label="${dateIndex}" aria-hidden="true"></text>`;
       const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: userMetricLabels[userMetric], total: dayTotal, items: tooltipItems, contributorCount }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
       const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
-      return `${segments}${hitArea}${label}`;
+      return `${segments}${valueLabel}${hitArea}${label}`;
     }).join("");
     const legend = chartLegendMarkup(series, "users");
     return {
@@ -2097,6 +2103,21 @@
       segment.classList.toggle("ae-stack-highlighted", selected);
       segment.classList.toggle("ae-stack-dimmed", hasHighlight && !selected);
     });
+    const valueLabels = new Map();
+    chart.querySelectorAll("[data-ae-stack-value-label]").forEach((label) => {
+      label.textContent = "";
+      label.classList.remove("ae-stack-highlighted");
+      valueLabels.set(label.dataset.aeStackValueLabel, label);
+    });
+    if (hasHighlight) {
+      chart.querySelectorAll("[data-ae-stack-actor]").forEach((segment) => {
+        if (segment.dataset.aeStackActor !== actorId) return;
+        const label = valueLabels.get(segment.dataset.aeStackDay);
+        if (!label) return;
+        label.textContent = segment.dataset.aeStackDisplay || "";
+        label.classList.add("ae-stack-highlighted");
+      });
+    }
     chart.querySelectorAll("[data-ae-legend-actor]").forEach((legendItem) => {
       const selected = hasHighlight && legendItem.dataset.aeLegendActor === actorId;
       legendItem.classList.toggle("ae-stack-highlighted", selected);

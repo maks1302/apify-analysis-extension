@@ -254,6 +254,8 @@
 .ae-stack-segment:hover { opacity: 1; outline: 1px solid rgba(255,255,255,.65); }
 .ae-stack-highlight-active .ae-stack-segment.ae-stack-dimmed { opacity: .14; }
 .ae-stack-highlight-active .ae-stack-segment.ae-stack-highlighted { filter: brightness(1.16) saturate(1.08); opacity: 1; stroke: rgba(255,255,255,.72); stroke-width: .75px; }
+.ae-stack-value-label { fill: #f4f5f7; font: 750 7px/1 Inter, sans-serif; opacity: 0; paint-order: stroke; pointer-events: none; stroke: var(--ae-card); stroke-linejoin: round; stroke-width: 2.5px; transition: opacity 120ms ease; }
+.ae-stack-value-label.ae-stack-highlighted { opacity: 1; }
 .ae-bar-hit { cursor: crosshair; fill: transparent; pointer-events: all; }
 .ae-bar-hit:hover { fill: rgba(255,255,255,.025); }
 .ae-stack-tick { fill: #6f6f80; font: 8px Inter, sans-serif; }

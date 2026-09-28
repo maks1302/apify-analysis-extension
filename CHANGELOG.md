@@ -20,6 +20,8 @@ Notable project changes are documented here.
 - Added expandable Actor legends that highlight matching stacked segments on
   hover or keyboard focus. Every Actor now remains an individual chart segment,
   while daily tooltips rank the true contributors for the hovered day.
+- Added compact per-day value labels above the bars while an Actor is highlighted
+  from the legend, using currency or count formatting for the active chart.
 
 ## 0.27.0 — 2026-09-24
 
