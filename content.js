@@ -373,12 +373,39 @@
     scheduleRender();
   }
 
+  function cleanActorDailySeries(monthData) {
+    const actorDaily = monthData?.actorDaily;
+    if (!actorDaily || typeof actorDaily !== "object") return { monthData, changed: false };
+    const knownActorIds = new Set((monthData?.actorBreakdown?.actors || []).map((actor) => actor.id));
+    const entries = Object.entries(actorDaily).filter(([actorId]) => (
+      actorId
+      && !actorId.includes(",")
+      && (!knownActorIds.size || knownActorIds.has(actorId))
+    ));
+    if (entries.length === Object.keys(actorDaily).length) return { monthData, changed: false };
+    return {
+      monthData: { ...monthData, actorDaily: Object.fromEntries(entries) },
+      changed: true,
+    };
+  }
+
+  function cleanStoredActorDailySeries(storedMonths) {
+    let changed = false;
+    const cleanedMonths = Object.fromEntries(Object.entries(storedMonths).map(([month, monthData]) => {
+      const cleaned = cleanActorDailySeries(monthData);
+      changed ||= cleaned.changed;
+      return [month, cleaned.monthData];
+    }));
+    return { months: cleanedMonths, changed };
+  }
+
   async function saveActorBreakdown(breakdown, { background = false } = {}) {
-    months[breakdown.month] = {
+    const nextMonth = {
       ...months[breakdown.month],
       month: breakdown.month,
       actorBreakdown: breakdown,
     };
+    months[breakdown.month] = cleanActorDailySeries(nextMonth).monthData;
     if (!background && comparisonMonthRequest?.target !== breakdown.month) selectedMonth = breakdown.month;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
     if (activeView === "quality") {
@@ -402,11 +429,14 @@
 
   async function saveActorDaily(month, actorId, daily) {
     const key = String(month || "").slice(0, 7);
-    if (!key || !actorId || !daily) return;
+    const normalizedActorId = String(actorId || "").trim();
+    if (!key || !normalizedActorId || normalizedActorId.includes(",") || !daily) return;
+    const knownActorIds = new Set((months[key]?.actorBreakdown?.actors || []).map((actor) => actor.id));
+    if (knownActorIds.size && !knownActorIds.has(normalizedActorId)) return;
     months[key] = {
       ...months[key],
       month: key,
-      actorDaily: { ...(months[key]?.actorDaily || {}), [actorId]: daily },
+      actorDaily: { ...(months[key]?.actorDaily || {}), [normalizedActorId]: daily },
     };
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
     scheduleRender();
@@ -603,7 +633,7 @@
   function stackedActorChart(data) {
     const actorDaily = data?.actorDaily || {};
     const actorInfo = new Map((data?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
-    const series = Object.entries(actorDaily).filter(([id]) => actorSelected(id)).map(([id, daily]) => ({
+    const series = Object.entries(actorDaily).filter(([id]) => actorInfo.has(id) && actorSelected(id)).map(([id, daily]) => ({
       id,
       name: actorInfo.get(id)?.title || actorInfo.get(id)?.name || id,
       daily,
@@ -2369,9 +2399,12 @@
   });
 
   chrome.storage.local.get([STORAGE_KEY, QUALITY_STORAGE_KEY]).then((result) => {
-    months = result[STORAGE_KEY] && typeof result[STORAGE_KEY] === "object"
+    const storedMonths = result[STORAGE_KEY] && typeof result[STORAGE_KEY] === "object"
       ? result[STORAGE_KEY]
       : {};
+    const cleaned = cleanStoredActorDailySeries(storedMonths);
+    months = cleaned.months;
+    if (cleaned.changed) void chrome.storage.local.set({ [STORAGE_KEY]: months });
     actorQuality = result[QUALITY_STORAGE_KEY] && typeof result[QUALITY_STORAGE_KEY] === "object"
       ? result[QUALITY_STORAGE_KEY]
       : {};

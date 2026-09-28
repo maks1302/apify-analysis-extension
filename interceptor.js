@@ -495,9 +495,15 @@
     let type = ENDPOINTS.get(url.pathname);
     if (!type) return;
 
-    const actorIds = url.searchParams.get("actorIds");
-    if (url.pathname === "/actor-analytics/profit-margin" && actorIds) {
-      post({ type: "ACTOR_DAILY_DATA", month: monthKey(url.searchParams.get("month")), actorId: actorIds, payload });
+    const actorIdParameters = url.searchParams.getAll("actorIds");
+    if (url.pathname === "/actor-analytics/profit-margin" && actorIdParameters.length) {
+      const actorIds = actorIdParameters
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean);
+      if (actorIds.length === 1) {
+        post({ type: "ACTOR_DAILY_DATA", month: monthKey(url.searchParams.get("month")), actorId: actorIds[0], payload });
+      }
       return;
     }
 

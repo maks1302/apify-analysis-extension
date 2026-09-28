@@ -12,6 +12,9 @@ Notable project changes are documented here.
   status tabs, and stopped failed requests from entering an automatic retry loop.
 - Kept recent-run data memory-only and removed user IDs, worker IPs, and internal
   runtime identifiers before passing data to the dashboard.
+- Fixed duplicate daily earnings caused by treating Apify Console's comma-separated
+  multi-Actor profit request as an additional synthetic Actor series, and added
+  automatic cleanup for previously stored aggregate series.
 
 ## 0.27.0 — 2026-09-24
 
