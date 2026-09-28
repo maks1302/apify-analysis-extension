@@ -265,6 +265,9 @@
 .ae-stack-highlight-active .ae-actor-legend span.ae-stack-dimmed { opacity: .32; }
 .ae-stack-highlight-active .ae-actor-legend span.ae-stack-highlighted { background: rgba(255,255,255,.07); color: #f2f2f7; opacity: 1; }
 .ae-actor-legend span:focus-visible { box-shadow: 0 0 0 1px var(--ae-blue); }
+.ae-legend-toggle { background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--ae-blue); cursor: pointer; font: 700 8px/1.2 Inter, sans-serif; padding: 5px 8px; }
+.ae-legend-toggle:hover { background: rgba(255,255,255,.075); border-color: rgba(255,255,255,.14); color: #b5c3ff; }
+.ae-legend-toggle:focus-visible { outline: 1px solid var(--ae-blue); outline-offset: 1px; }
 .ae-load-progress { background: rgba(255,255,255,.055); border-radius: 99px; height: 4px; margin-top: 16px; position: relative; }
 .ae-load-progress i { background: linear-gradient(90deg, var(--ae-purple), var(--ae-green)); border-radius: inherit; display: block; height: 100%; transition: width 180ms ease; }
 .ae-load-progress span { color: var(--ae-muted); font-size: 8px; position: absolute; right: 0; top: 8px; }
