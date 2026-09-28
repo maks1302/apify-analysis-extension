@@ -625,10 +625,19 @@
     }).join(" ");
   }
 
-  const actorColors = [
-    "#2068F8", "#20A048", "#F86000", "#5B8FF9", "#D94C5C", "#D6A11D",
-    "#7856D8", "#1EA7A1", "#D95C9D", "#4D7AD9", "#70A83A", "#A55BC4",
-  ];
+  function actorColor(actorId) {
+    const value = String(actorId || "unknown-actor");
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    const unsignedHash = hash >>> 0;
+    const hue = unsignedHash % 360;
+    const saturation = 62 + ((unsignedHash >>> 8) % 15);
+    const lightness = 48 + ((unsignedHash >>> 16) % 9);
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  }
 
   function stackedActorChart(data) {
     const actorDaily = data?.actorDaily || {};
@@ -668,18 +677,18 @@
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
       let yBottom = plotTop + plotHeight;
-      const tooltipItems = series.map((item, seriesIndex) => ({
+      const tooltipItems = series.map((item) => ({
         name: item.name,
         value: number(values.get(item.id)?.get(date)),
-        color: seriesIndex < 11 ? actorColors[seriesIndex % actorColors.length] : "#5c5c6d",
+        color: actorColor(item.id),
       })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
-      const segments = chartSeries.map((item, seriesIndex) => {
+      const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
-        const color = item.id === "other" ? "#5c5c6d" : actorColors[seriesIndex % actorColors.length];
+        const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
         return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment"></rect>`;
       }).join("");
       const tooltipData = escapeHtml(JSON.stringify({
@@ -695,8 +704,8 @@
       return `${segments}${hitArea}${label}`;
     }).join("");
 
-    const legend = chartSeries.map((item, index) => {
-      const color = item.id === "other" ? "#5c5c6d" : actorColors[index % actorColors.length];
+    const legend = chartSeries.map((item) => {
+      const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
       return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
 
@@ -812,18 +821,18 @@
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
       let yBottom = plotTop + plotHeight;
-      const tooltipItems = series.map((item, seriesIndex) => ({
+      const tooltipItems = series.map((item) => ({
         name: item.name,
         value: number(values.get(item.id)?.get(date)),
-        color: seriesIndex < 11 ? actorColors[seriesIndex % actorColors.length] : "#5c5c6d",
+        color: actorColor(item.id),
       })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
-      const segments = chartSeries.map((item, seriesIndex) => {
+      const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
-        const color = item.id === "other" ? "#5c5c6d" : actorColors[seriesIndex % actorColors.length];
+        const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
         return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment"></rect>`;
       }).join("");
       const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: runMetricLabels[runMetric], total: dayTotal, items: tooltipItems }));
@@ -832,8 +841,8 @@
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
       return `${segments}${hitArea}${label}`;
     }).join("");
-    const legend = chartSeries.map((item, index) => {
-      const color = item.id === "other" ? "#5c5c6d" : actorColors[index % actorColors.length];
+    const legend = chartSeries.map((item) => {
+      const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
       return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
 
@@ -1026,18 +1035,18 @@
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
       let yBottom = plotTop + plotHeight;
-      const tooltipItems = series.map((item, seriesIndex) => ({
+      const tooltipItems = series.map((item) => ({
         name: item.name,
         value: number(values.get(item.id)?.get(date)),
-        color: seriesIndex < 11 ? actorColors[seriesIndex % actorColors.length] : "#5c5c6d",
+        color: actorColor(item.id),
       })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
-      const segments = chartSeries.map((item, seriesIndex) => {
+      const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
         if (value <= 0) return "";
         const segmentHeight = (value / maxValue) * plotHeight;
         yBottom -= segmentHeight;
-        const color = item.id === "other" ? "#5c5c6d" : actorColors[seriesIndex % actorColors.length];
+        const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
         return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment"></rect>`;
       }).join("");
       const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: userMetricLabels[userMetric], total: dayTotal, items: tooltipItems }));
@@ -1046,8 +1055,8 @@
       const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
       return `${segments}${hitArea}${label}`;
     }).join("");
-    const legend = chartSeries.map((item, index) => {
-      const color = item.id === "other" ? "#5c5c6d" : actorColors[index % actorColors.length];
+    const legend = chartSeries.map((item) => {
+      const color = item.id === "other" ? "#5c5c6d" : actorColor(item.id);
       return `<span title="${escapeHtml(item.name)}"><i style="background:${color}"></i>${escapeHtml(item.name)}</span>`;
     }).join("");
     return {

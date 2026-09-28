@@ -15,6 +15,8 @@ Notable project changes are documented here.
 - Fixed duplicate daily earnings caused by treating Apify Console's comma-separated
   multi-Actor profit request as an additional synthetic Actor series, and added
   automatic cleanup for previously stored aggregate series.
+- Made Actor colors deterministic from the Actor ID so legends, stacked bars, and
+  tooltips stay consistent across earnings, run activity, and user activity views.
 
 ## 0.27.0 — 2026-09-24
 
