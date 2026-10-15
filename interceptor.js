@@ -462,12 +462,13 @@
     marketingLoadingMonths.delete(key);
   };
 
-  const storeProfitTemplate = (url, init) => {
+  const storeProfitTemplate = (url, init, { background = false } = {}) => {
     const key = monthKey(url.searchParams.get("month"));
     if (!key) return;
     const template = { url: url.href, init };
     profitRequestByMonth.set(key, template);
     latestProfitTemplate = template;
+    if (background) return;
     void maybeLoadDailyActors(key);
     void maybeLoadDailyRuns(key);
     void maybeLoadDailyUsers(key);
@@ -650,7 +651,7 @@
       breakdownUrl.searchParams.set("month", `${key}-01`);
       breakdownUrl.searchParams.set("actorIds", "");
 
-      storeProfitTemplate(profitUrl, latestProfitTemplate.init);
+      storeProfitTemplate(profitUrl, latestProfitTemplate.init, { background });
       const [profitResponse, breakdownResponse] = await Promise.all([
         loadWithTimeout(profitUrl.href, latestProfitTemplate.init),
         loadWithTimeout(breakdownUrl.href, latestProfitTemplate.init),

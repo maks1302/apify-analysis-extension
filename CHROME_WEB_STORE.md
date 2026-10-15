@@ -6,29 +6,10 @@ Actor Analytics for Apify (by MintAPI).
 **Published listing:**
 https://chromewebstore.google.com/detail/actor-analytics-for-apify/alhjjaafelbmfphijdidjodejcjiccef
 
-## 1. Finish the extension icons
+## 1. Release package
 
-Chrome does not support SVG files as manifest icons. Export `logo.svg` as PNG
-files with transparent backgrounds and save them as:
-
-- `icons/icon16.png` — 16 × 16 px
-- `icons/icon32.png` — 32 × 32 px
-- `icons/icon48.png` — 48 × 48 px
-- `icons/icon128.png` — 128 × 128 px
-
-Then add this top-level property to `manifest.json`:
-
-```json
-"icons": {
-  "16": "icons/icon16.png",
-  "32": "icons/icon32.png",
-  "48": "icons/icon48.png",
-  "128": "icons/icon128.png"
-}
-```
-
-Keep the artwork legible at 16 px and avoid putting important details at the
-outer edge of the 128 px canvas.
+Version **0.30.0** No new permissions or site access
+are required for this update.
 
 ## 2. Store listing
 
@@ -61,7 +42,12 @@ KEY FEATURES
 • Actor performance rankings with revenue, profit, cost, usage, and reliability metrics
 • Actor quality details including scores, ratings, reviews, bookmarks, praises, and suggested improvements
 • Traffic and acquisition insights including page views, conversion signals, referrers, and countries
-• Month and year selection, Actor filtering, rich chart tooltips, light/dark themes, and fullscreen analysis
+• Yearly earnings, run activity, and user activity with one monthly bar stacked by Actor
+• Yearly Actor performance totals and previous-year financial comparisons
+• Yearly traffic and acquisition with monthly count totals and weighted source/country estimates
+• Month/year timeframe controls, Actor filtering, rich tooltips, light/dark themes, and fullscreen analysis
+
+Yearly user and visitor totals sum monthly Actor counts; the same person can appear in multiple months and Actors. Current-month data is partial. Actor quality shows current signals independently of the selected timeframe.
 
 PRIVACY BY DESIGN
 
@@ -204,7 +190,10 @@ access tokens, request headers, or unrelated account information in screenshots.
 3. Reload the page once after installing the extension.
 4. Click Analytics in the Monetization chart header. If that control has not mounted yet, use the Analytics launcher in the lower-right corner.
 5. Switch among Overview, Daily earnings, Run activity, User activity, Actor performance, Actor quality, and Traffic & acquisition.
-6. Use the month/year controls and Actor selector to verify filtering.
+6. Choose Year in the timeframe controls. Check monthly stacked bars in earnings, Run activity, and User activity; change metrics and filter Actors.
+7. Check yearly Actor performance and Traffic & acquisition. The current month is partial; user and visitor counts sum monthly counts rather than distinct people across the year.
+8. Open Actor quality. The timeframe controls stay visible and retain the selected period, while quality signals remain independent of that period.
+9. Switch back to Month, choose a month/year, click Load, and verify Actor filtering.
 
 No separate extension account, API key, or payment is required. The extension uses the reviewer's existing signed-in Apify Console session and only displays data available to that account.
 ```
@@ -236,7 +225,7 @@ icons/
 
 For a Store update:
 
-1. Increase `version` in `manifest.json`.
+1. Confirm the new `version` in `manifest.json` (this release: `0.30.0`).
 2. Test the unpacked extension and run the checks above.
 3. Open the existing item in the Chrome Web Store Developer Dashboard and upload
    the generated ZIP under **Package**.

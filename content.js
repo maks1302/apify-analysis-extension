@@ -749,7 +749,10 @@
     return {
       month: `${year}-01`, yearly: true,
       dates: Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}-01`),
-      actorBreakdown: { actors: [...actors.values()].sort((a, b) => b.profitUsd - a.profitUsd) }, actorDaily, actorRunDaily, actorUserDaily,
+      actorBreakdown: {
+        actors: [...actors.values()].sort((a, b) => b.profitUsd - a.profitUsd),
+        capturedAt: keys.map((key) => months[key]?.actorBreakdown?.capturedAt).filter(Boolean).sort().at(-1),
+      }, actorDaily, actorRunDaily, actorUserDaily,
       actorMarketing: yearlyMarketing(keys),
     };
   }
@@ -1654,7 +1657,7 @@
         </div>
         <div class="ae-actor-list">${rows}</div>
       </section>
-      <footer>Actor breakdown captured locally ${new Date(breakdown.capturedAt).toLocaleString()}</footer>
+      <footer>${breakdown.capturedAt ? `Actor breakdown captured locally ${new Date(breakdown.capturedAt).toLocaleString()}` : "Capture time unavailable"}</footer>
     </div>`;
   }
 

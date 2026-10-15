@@ -2,6 +2,20 @@
 
 Notable project changes are documented here.
 
+## 0.30.0 — 2026-10-15
+
+- Added yearly earnings, run activity, and user activity with January–December
+  bars stacked by Actor, metric controls, filtering, and monthly tooltips.
+- Added yearly Actor performance totals, profit rankings, weighted success rates,
+  run reliability, and financial comparisons with the previous year.
+- Added yearly Traffic & acquisition with summed monthly counts, page-view-weighted
+  source/country estimates, and coverage reporting for unavailable data.
+- Kept Actor quality independent of timeframe while preserving visible period
+  controls and the selected month or year across tab changes.
+- Show negative earnings below zero and distinguish unavailable months from
+  months with no activity. Mark the current month as partial.
+- Keep yearly/background loads from launching per-Actor daily analytics requests.
+
 ## 0.29.0 — 2026-09-28
 
 - Fixed duplicate daily earnings caused by treating Apify Console's comma-separated
