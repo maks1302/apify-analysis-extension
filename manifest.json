@@ -4,47 +4,25 @@
   "version": "0.30.0",
   "description": "Advanced local analytics for Apify Actors: revenue, profit, runs, users, quality, and acquisition in one dashboard.",
   "minimum_chrome_version": "111",
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": [
-        "https://console.apify.com/*"
-      ],
-      "js": [
-        "interceptor.js"
-      ],
+      "matches": ["https://console.apify.com/*"],
+      "js": ["interceptor.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": [
-        "https://console.apify.com/*"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "css": [
-        "styles.css"
-      ],
+      "matches": ["https://console.apify.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": [
-        "logo.svg"
-      ],
-      "matches": [
-        "https://console.apify.com/*"
-      ]
+      "resources": ["logo.svg"],
+      "matches": ["https://console.apify.com/*"]
     }
-  ],
-  "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  }
+  ]
 }
