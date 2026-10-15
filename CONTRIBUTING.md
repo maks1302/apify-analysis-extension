@@ -33,6 +33,17 @@ There are no runtime dependencies or build step.
 - The panel opens, closes, enters fullscreen, and exits fullscreen.
 - Every dashboard tab can be selected repeatedly.
 - Month/year selection and Actor filtering work.
+- Yearly earnings, run activity, and user activity show January–December with
+  one stack per month. Changing the
+  year and metric, filtering Actors, partial loads, failed-month retries, and
+  returning to the monthly view work. Yearly Actor performance sums run/user
+  metrics, recomputes success rates, ranks by profit, and uses previous-year
+  financial totals only when both periods have complete loaded coverage. Negative profit appears below zero.
+- Yearly Traffic & acquisition sums monthly counts and weights traffic shares
+  by page views; unavailable months remain visible in coverage reporting.
+- Actor quality stays available in both modes, preserves visible date controls,
+  and shows
+  current signals for the same known Actors regardless of the selected period.
 - Actor and Help popovers close on outside click and Escape.
 - Daily tooltips show a complete, sorted Actor breakdown.
 - Run inspector status tabs filter independently from the monthly chart, refresh

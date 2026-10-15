@@ -10,6 +10,8 @@
   let months = {};
   let actorQuality = {};
   let selectedMonth = null;
+  let timeframe = "month";
+  let yearlySelection = null;
   let panelOpen = false;
   let panelFullscreen = false;
   let activeView = "overview";
@@ -409,12 +411,6 @@
     months[breakdown.month] = cleanActorDailySeries(nextMonth).monthData;
     if (!background && comparisonMonthRequest?.target !== breakdown.month) selectedMonth = breakdown.month;
     await chrome.storage.local.set({ [STORAGE_KEY]: months });
-    if (activeView === "quality") {
-      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: breakdown.month }, window.location.origin);
-    }
-    if (activeView === "acquisition") {
-      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: breakdown.month }, window.location.origin);
-    }
     scheduleRender();
   }
 
@@ -655,6 +651,123 @@
     return `${items}${toggle}`;
   }
 
+  function yearMonthKeys(year) {
+    const current = localDateKey().slice(0, 7);
+    return Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`)
+      .filter((key) => key <= current);
+  }
+
+  function qualityData() {
+    const actors = new Map();
+    Object.entries(months).sort(([a], [b]) => a.localeCompare(b)).forEach(([, data]) => {
+      (data.actorBreakdown?.actors || []).forEach((actor) => actors.set(actor.id, actor));
+    });
+    Object.values(actorQuality).forEach((actor) => {
+      if (!actors.has(actor.id)) actors.set(actor.id, { ...actor, title: actor.title || actor.name || actor.id, name: actor.name || actor.id });
+    });
+    return { month: "current", yearly: timeframe === "year", actorBreakdown: { actors: [...actors.values()] } };
+  }
+
+  function requestQuality() {
+    window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: "current",
+      actorIds: qualityData().actorBreakdown.actors.map((actor) => actor.id) }, window.location.origin);
+  }
+
+  function requestMarketing(data, { force = false } = {}) {
+    const keys = data?.yearly ? yearMonthKeys(data.month.slice(0, 4)) : [data?.month];
+    keys.filter(Boolean).forEach((key) => {
+      const actors = months[key]?.actorBreakdown?.actors;
+      if (!actors?.length || marketingLoadStatus[key]?.status === "loading") return;
+      if (!force && actors.every((actor) => months[key]?.actorMarketing?.[actor.id])) return;
+      if (!force && marketingLoadStatus[key]?.status === "waiting-request") return;
+      marketingLoadStatus[key] = { status: "loading", completed: 0, total: actors.length };
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: key,
+        actorIds: actors.map((actor) => actor.id) }, window.location.origin);
+    });
+  }
+
+  function yearlyMarketing(keys) {
+    const byActor = {};
+    for (const key of keys) {
+      for (const [id, record] of Object.entries(months[key]?.actorMarketing || {})) {
+        const item = byActor[id] ||= { id, available: false, webPageViews: 0, consolePageViews: 0,
+          viewingUsers: 0, usersWithRun: 0, topReferrers: [], topCountries: [], error: "", records: [] };
+        if (record.available) {
+          item.available = true;
+          for (const metric of ["webPageViews", "consolePageViews", "viewingUsers", "usersWithRun"]) item[metric] += number(record[metric]);
+          item.records.push(record);
+        } else item.error = record.error || "Some monthly data unavailable";
+      }
+    }
+    for (const item of Object.values(byActor)) {
+      for (const field of ["topReferrers", "topCountries"]) {
+        const weights = new Map();
+        let totalWeight = 0;
+        for (const record of item.records) {
+          const weight = record.webPageViews + record.consolePageViews;
+          totalWeight += weight;
+          for (const entry of record[field] || []) weights.set(entry.origin, number(weights.get(entry.origin)) + weight * entry.trafficPercent);
+        }
+        item[field] = [...weights].map(([origin, value]) => ({ origin, trafficPercent: totalWeight ? value / totalWeight : 0 }))
+          .sort((a, b) => b.trafficPercent - a.trafficPercent);
+      }
+      delete item.records;
+    }
+    return byActor;
+  }
+
+  function yearlyData(year) {
+    const actors = new Map();
+    const actorDaily = {};
+    const actorRunDaily = {};
+    const actorUserDaily = {};
+    const keys = yearMonthKeys(year);
+    keys.forEach((key) => {
+      (months[key]?.actorBreakdown?.actors || []).forEach((actor) => {
+        const previous = actors.get(actor.id);
+        const combined = { ...actor };
+        for (const metric of ["revenueUsd", "profitUsd", "costUsd", "totalRuns", "successfulRuns", "failedRuns", "abortedRuns", "timedOutRuns", "results", "chargedResults", "freeUsers", "payingUsers"]) {
+          combined[metric] = number(previous?.[metric]) + number(actor[metric]);
+        }
+        combined.successRate = combined.totalRuns ? combined.successfulRuns / combined.totalRuns : 0;
+        combined.margin = combined.revenueUsd ? combined.profitUsd / combined.revenueUsd : 0;
+        actors.set(actor.id, combined);
+        (actorRunDaily[actor.id] ||= []).push({
+          date: `${key}-01`, TOTAL: number(actor.totalRuns), SUCCEEDED: number(actor.successfulRuns),
+          FAILED: number(actor.failedRuns), ABORTED: number(actor.abortedRuns),
+          "TIMED-OUT": number(actor.timedOutRuns), RESULTS: number(actor.results),
+        });
+        (actorUserDaily[actor.id] ||= []).push({
+          date: `${key}-01`, payingUsers: number(actor.payingUsers), freeUsers: number(actor.freeUsers),
+          totalUsers: number(actor.payingUsers) + number(actor.freeUsers),
+        });
+        (actorDaily[actor.id] ||= []).push({
+          date: `${key}-01`, revenueUsd: actor.revenueUsd, profitUsd: actor.profitUsd, costUsd: actor.costUsd,
+        });
+      });
+    });
+    return {
+      month: `${year}-01`, yearly: true,
+      dates: Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}-01`),
+      actorBreakdown: { actors: [...actors.values()].sort((a, b) => b.profitUsd - a.profitUsd) }, actorDaily, actorRunDaily, actorUserDaily,
+      actorMarketing: yearlyMarketing(keys),
+    };
+  }
+
+  function loadYear(year) {
+    yearlySelection = year;
+    requestYearMonths(year);
+  }
+
+  function requestYearMonths(year, { missingOnly = false } = {}) {
+    yearMonthKeys(year).forEach((key) => {
+      if (monthLoadStatus[key]?.status === "loading") return;
+      if (missingOnly && (months[key]?.actorBreakdown || monthLoadStatus[key]?.status === "error")) return;
+      monthLoadStatus[key] = { status: "loading", message: "" };
+      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01`, purpose: "year" }, window.location.origin);
+    });
+  }
+
   function stackedActorChart(data) {
     const actorDaily = data?.actorDaily || {};
     const actorInfo = new Map((data?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
@@ -666,48 +779,59 @@
     })).sort((a, b) => b.total - a.total);
     if (!series.length) return null;
 
-    const dates = [...new Set(series.flatMap((item) => item.daily.map((day) => day.date)))].sort();
+    const dates = data.dates || [...new Set(series.flatMap((item) => item.daily.map((day) => day.date)))].sort();
     const chartSeries = series;
     const values = new Map(series.map((item) => [item.id, new Map(item.daily.map((day) => [day.date, number(day[dailyMetric])]))]));
     const valueFor = (item, date) => item.grouped
       ? item.grouped.reduce((sum, child) => sum + number(values.get(child.id)?.get(date)), 0)
       : number(values.get(item.id)?.get(date));
     const totalsByDate = dates.map((date) => chartSeries.reduce((sum, item) => sum + valueFor(item, date), 0));
-    const maxValue = Math.max(...totalsByDate, 1);
+    const positiveTotals = dates.map((date) => series.reduce((sum, item) => sum + Math.max(0, valueFor(item, date)), 0));
+    const negativeTotals = dates.map((date) => series.reduce((sum, item) => sum + Math.min(0, valueFor(item, date)), 0));
+    const maxValue = Math.max(...positiveTotals, 1);
+    const minValue = Math.min(...negativeTotals, 0);
+    const valueRange = maxValue - minValue;
     const width = 760;
     const height = 260;
     const plotTop = 10;
     const plotHeight = 210;
+    const yFor = (value) => plotTop + (maxValue - value) / valueRange * plotHeight;
     const slot = width / Math.max(dates.length, 1);
     const barWidth = Math.max(5, Math.min(30, slot * 0.68));
 
     const guides = [0, .25, .5, .75, 1].map((ratio) => {
-      const y = plotTop + plotHeight - plotHeight * ratio;
-      return `<g><line x1="0" y1="${y}" x2="${width}" y2="${y}" class="ae-guide"/><text x="0" y="${y - 4}" class="ae-stack-tick">${escapeHtml(compactMoney(maxValue * ratio))}</text></g>`;
+      const value = minValue + valueRange * ratio;
+      const y = yFor(value);
+      return `<g><line x1="0" y1="${y}" x2="${width}" y2="${y}" class="ae-guide"/><text x="0" y="${y - 4}" class="ae-stack-tick">${escapeHtml(compactMoney(value))}</text></g>`;
     }).join("");
 
     const bars = dates.map((date, dateIndex) => {
       const x = dateIndex * slot + (slot - barWidth) / 2;
-      let yBottom = plotTop + plotHeight;
-      const contributorCount = series.filter((item) => number(values.get(item.id)?.get(date)) > 0).length;
+      let positive = 0;
+      let negative = 0;
+      const contributorCount = series.filter((item) => number(values.get(item.id)?.get(date)) !== 0).length;
       const tooltipItems = chartSeries.map((item) => ({
         name: item.name,
         value: valueFor(item, date),
         color: actorColor(item.id),
-      })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
+      })).filter((item) => item.value !== 0).sort((a, b) => b.value - a.value);
       const dayTotal = tooltipItems.reduce((sum, item) => sum + item.value, 0);
-      const valueLabelY = Math.max(plotTop + 7, plotTop + plotHeight - (dayTotal / maxValue) * plotHeight - 3);
+      const valueLabelY = Math.max(plotTop + 7, yFor(positiveTotals[dateIndex]) - 3);
       const segments = chartSeries.map((item) => {
         const value = valueFor(item, date);
-        if (value <= 0) return "";
-        const segmentHeight = (value / maxValue) * plotHeight;
-        yBottom -= segmentHeight;
+        if (value === 0) return "";
+        const segmentHeight = (Math.abs(value) / valueRange) * plotHeight;
+        const y = value > 0 ? yFor(positive + value) : yFor(negative);
+        if (value > 0) positive += value;
+        else negative += value;
         const color = actorColor(item.id);
-        return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactMoney(value))}"></rect>`;
+        return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .6).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactMoney(value))}"></rect>`;
       }).join("");
       const valueLabel = `<text x="${(x + barWidth / 2).toFixed(2)}" y="${valueLabelY.toFixed(2)}" text-anchor="middle" class="ae-stack-value-label" data-ae-stack-value-label="${dateIndex}" aria-hidden="true"></text>`;
       const tooltipData = escapeHtml(JSON.stringify({
         kind: "money",
+        monthly: Boolean(data.yearly),
+        unavailable: Boolean(data.yearly && !months[date.slice(0, 7)]?.actorBreakdown),
         date,
         label: dailyMetric === "profitUsd" ? "Profit" : dailyMetric === "costUsd" ? "Cost" : "Revenue",
         total: dayTotal,
@@ -715,8 +839,8 @@
         contributorCount,
       }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
-      const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
-      const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
+      const showLabel = data.yearly || dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
+      const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(data.yearly ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short" }) : date.slice(8))}</text>` : "";
       return `${segments}${valueLabel}${hitArea}${label}`;
     }).join("");
 
@@ -724,8 +848,8 @@
 
     return {
       html: `<div class="ae-daily-chart-wrap">
-        <svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily earnings by Actor">${guides}${bars}</svg>
-        <div class="ae-stack-axis-title">Day of month</div>
+        <svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${data.yearly ? "Monthly" : "Daily"} earnings by Actor">${guides}${bars}</svg>
+        <div class="ae-stack-axis-title">${data.yearly ? "Month of year" : "Day of month"}</div>
         <div class="ae-actor-legend">${legend}</div>
       </div>`,
       series,
@@ -736,7 +860,8 @@
 
   function dailyMixMarkup(data) {
     const chart = stackedActorChart(data);
-    const status = dailyLoadStatus[data?.month];
+    const yearly = Boolean(data?.yearly);
+    const status = yearly ? null : dailyLoadStatus[data?.month];
     const captured = Object.keys(data?.actorDaily || {}).length;
     const total = status?.total || data?.actorBreakdown?.actors?.filter((actor) => actor.revenueUsd > 0).length || 0;
     const progress = total ? Math.min(100, (captured / total) * 100) : 0;
@@ -746,8 +871,8 @@
       const waiting = status?.status === "waiting-request";
       return `<div class="ae-empty ae-empty-actors">
         <div class="ae-empty-icon">▥</div>
-        <h2>${unsupported ? "Daily Actor filtering unavailable" : waiting ? "Waiting for Apify’s daily request" : "Building the daily Actor chart"}</h2>
-        <p>${unsupported ? "This Apify session did not accept actorIds on the profit-margin endpoint. The monthly Actor dashboards still work." : waiting ? "Reload the Monetization page or switch its month once. Loading starts when Apify requests profit-margin for the selected month." : "Keep this Apify Monetization page open while the extension securely loads each Actor’s daily series."}</p>
+        <h2>${yearly ? "No yearly Actor data available" : unsupported ? "Daily Actor filtering unavailable" : waiting ? "Waiting for Apify’s daily request" : "Building the daily Actor chart"}</h2>
+        <p>${yearly ? "Load the year to see monthly totals, or choose Actors with activity in this year." : unsupported ? "This Apify session did not accept actorIds on the profit-margin endpoint. The monthly Actor dashboards still work." : waiting ? "Reload the Monetization page or switch its month once. Loading starts when Apify requests profit-margin for the selected month." : "Keep this Apify Monetization page open while the extension securely loads each Actor’s daily series."}</p>
         ${status?.message ? `<small class="ae-status-error">${escapeHtml(status.message)}</small>` : ""}
       </div>`;
     }
@@ -757,17 +882,20 @@
     const topActor = chart.series[0];
     const topActorShare = totalValue ? topActor.total / totalValue : 0;
     const topThreeShare = totalValue ? chart.series.slice(0, 3).reduce((sum, item) => sum + item.total, 0) / totalValue : 0;
-    const peakIndex = chart.totalsByDate.indexOf(Math.max(...chart.totalsByDate));
+    const eligibleDates = chart.dates.map((date, index) => ({ date, index }))
+      .filter(({ date }) => !yearly || months[date.slice(0, 7)]?.actorBreakdown);
+    const peakIndex = eligibleDates.reduce((best, { index }) =>
+      best < 0 || chart.totalsByDate[index] > chart.totalsByDate[best] ? index : best, -1);
     const peakDate = peakIndex >= 0 ? chart.dates[peakIndex] : "";
     const peakValue = peakIndex >= 0 ? chart.totalsByDate[peakIndex] : 0;
     const peakDateLabel = peakDate
-      ? new Date(`${peakDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      ? new Date(`${peakDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", ...(yearly ? {} : { day: "numeric" }) })
       : "No activity";
 
     return `<div class="ae-daily-mix">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading">
-          <div><span>Daily earnings by Actor</span><small>Compare each Actor’s revenue, profit, or cost by day</small></div>
+          <div><span>${yearly ? "Monthly" : "Daily"} earnings by Actor</span><small>Compare each Actor’s revenue, profit, or cost by ${yearly ? "month" : "day"}</small></div>
           <div class="ae-metric-toggle">
             <button type="button" data-ae-metric="revenueUsd" class="${dailyMetric === "revenueUsd" ? "ae-active" : ""}">Revenue</button>
             <button type="button" data-ae-metric="profitUsd" class="${dailyMetric === "profitUsd" ? "ae-active" : ""}">Profit</button>
@@ -777,7 +905,7 @@
         <div class="ae-stat-ledger ae-stat-ledger-4">
           <article><span>Total ${escapeHtml(metricLabel)}</span><strong>${money(totalValue)}</strong><small>Across selected Actors</small></article>
           <article><span>Highest ${escapeHtml(metricLabel)}</span><strong>${money(topActor.total)}</strong><small title="${escapeHtml(topActor.name)}">${escapeHtml(topActor.name)} · ${percent(topActorShare)}</small></article>
-          <article><span>Peak day</span><strong>${money(peakValue)}</strong><small>${escapeHtml(peakDateLabel)}</small></article>
+          <article><span>Peak ${yearly ? "month" : "day"}</span><strong>${money(peakValue)}</strong><small>${escapeHtml(peakDateLabel)}</small></article>
           <article><span>Share from top 3 Actors</span><strong>${percent(topThreeShare)}</strong><small>Combined share of total ${escapeHtml(metricLabel)}</small></article>
         </div>
         ${chart.html}
@@ -808,7 +936,7 @@
     const series = allSeries.filter((item) => item.total > 0).sort((a, b) => b.total - a.total);
     if (!series.length) return null;
 
-    const dates = [...new Set(allSeries.flatMap((item) => item.daily.map((day) => day.date)))].sort();
+    const dates = data.dates || [...new Set(allSeries.flatMap((item) => item.daily.map((day) => day.date)))].sort();
     const chartSeries = series;
     const values = new Map(series.map((item) => [item.id, new Map(item.daily.map((day) => [day.date, number(day[runMetric])]))]));
     const valueFor = (item, date) => item.grouped
@@ -847,16 +975,16 @@
         return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactInteger(value))}"></rect>`;
       }).join("");
       const valueLabel = `<text x="${(x + barWidth / 2).toFixed(2)}" y="${valueLabelY.toFixed(2)}" text-anchor="middle" class="ae-stack-value-label" data-ae-stack-value-label="${dateIndex}" aria-hidden="true"></text>`;
-      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: runMetricLabels[runMetric], total: dayTotal, items: tooltipItems, contributorCount }));
+      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", monthly: Boolean(data.yearly), unavailable: Boolean(data.yearly && !months[date.slice(0, 7)]?.actorBreakdown), date, label: runMetricLabels[runMetric], total: dayTotal, items: tooltipItems, contributorCount }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
-      const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
-      const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
+      const showLabel = data.yearly || dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
+      const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(data.yearly ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short" }) : date.slice(8))}</text>` : "";
       return `${segments}${valueLabel}${hitArea}${label}`;
     }).join("");
     const legend = chartLegendMarkup(series, "runs");
 
     return {
-      html: `<div class="ae-daily-chart-wrap"><svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily ${escapeHtml(runMetricLabels[runMetric])} by Actor">${guides}${bars}</svg><div class="ae-stack-axis-title">Day of month</div><div class="ae-actor-legend">${legend}</div></div>`,
+      html: `<div class="ae-daily-chart-wrap"><svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${data.yearly ? "Monthly" : "Daily"} ${escapeHtml(runMetricLabels[runMetric])} by Actor">${guides}${bars}</svg><div class="ae-stack-axis-title">${data.yearly ? "Month of year" : "Day of month"}</div><div class="ae-actor-legend">${legend}</div></div>`,
       series,
       dates,
       totalsByDate,
@@ -968,7 +1096,7 @@
 
   function dailyRunsMarkup(data) {
     const chart = stackedRunChart(data);
-    const status = runLoadStatus[data?.month];
+    const status = data?.yearly ? null : runLoadStatus[data?.month];
     const captured = Object.keys(data?.actorRunDaily || {}).length;
     const totalActors = status?.total || data?.actorBreakdown?.actors?.length || 0;
     const progress = totalActors ? Math.min(100, (captured / totalActors) * 100) : 0;
@@ -981,7 +1109,7 @@
     return `<div class="ae-daily-runs">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading ae-run-heading">
-          <div><span>Daily run activity by Actor</span><small>Compare run outcomes and result volume by day</small></div>
+          <div><span>${data.yearly ? "Monthly" : "Daily"} run activity by Actor</span><small>Compare run outcomes and result volume by ${data.yearly ? "month" : "day"}</small></div>
           <div class="ae-run-metric-toggle">
             ${Object.entries(runMetricLabels).map(([key, label]) => `<button type="button" data-ae-run-metric="${escapeHtml(key)}" class="${runMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
@@ -989,12 +1117,12 @@
         <div class="ae-run-summary ae-stat-ledger ae-stat-ledger-3">
           <article><span>${escapeHtml(runMetricLabels[runMetric])}</span><strong>${integer(totalValue)}</strong><small>Across loaded Actors</small></article>
           <article><span>Active Actors</span><strong>${integer(chart?.series.length || 0)}</strong><small>Actors reporting this metric</small></article>
-          <article><span>Peak day</span><strong>${integer(peakValue)}</strong><small>${escapeHtml(peakDate || "No activity")}</small></article>
+          <article><span>Peak ${data.yearly ? "month" : "day"}</span><strong>${integer(peakValue)}</strong><small>${escapeHtml(peakDate ? data.yearly ? new Date(`${peakDate}T12:00:00`).toLocaleDateString("en-US", { month: "long" }) : peakDate : "No activity")}</small></article>
         </div>
         ${chart ? chart.html : `<div class="ae-run-empty"><strong>${unsupported ? "Daily run statistics unavailable" : status?.status === "waiting-request" ? "Waiting for Apify analytics" : `No ${escapeHtml(runMetricLabels[runMetric].toLowerCase())} recorded`}</strong><span>${unsupported ? escapeHtml(status?.message || "The endpoint request failed.") : status?.status === "waiting-request" ? "Reload the Monetization page or switch its month once." : status?.status === "loading" ? "Actor data is still loading." : "Choose another metric to inspect activity."}</span></div>`}
         ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Loaded ${captured} of ${totalActors} Actors</span></div>` : ""}
       </section>
-      ${runInspectorMarkup(data)}
+      ${data.yearly ? "" : runInspectorMarkup(data)}
     </div>`;
   }
 
@@ -1008,7 +1136,7 @@
     const actorUserDaily = data?.actorUserDaily || {};
     const actorInfo = new Map((data?.actorBreakdown?.actors || []).map((actor) => [actor.id, actor]));
     const allSeries = Object.entries(actorUserDaily).filter(([id]) => actorSelected(id)).map(([id, daily]) => {
-      const visibleDaily = daily.filter((day) => dateIsVisibleForMonth(day.date, data?.month));
+      const visibleDaily = data.yearly ? daily : daily.filter((day) => dateIsVisibleForMonth(day.date, data?.month));
       return {
         id,
         name: actorInfo.get(id)?.title || actorInfo.get(id)?.name || id,
@@ -1019,7 +1147,7 @@
     const series = allSeries.filter((item) => item.total > 0).sort((a, b) => b.total - a.total);
     if (!series.length) return null;
 
-    const dates = [...new Set(allSeries.flatMap((item) => item.daily.map((day) => day.date)))].sort();
+    const dates = data.dates || [...new Set(allSeries.flatMap((item) => item.daily.map((day) => day.date)))].sort();
     const chartSeries = series;
     const values = new Map(series.map((item) => [item.id, new Map(item.daily.map((day) => [day.date, number(day[userMetric])]))]));
     const valueFor = (item, date) => item.grouped
@@ -1057,15 +1185,15 @@
         return `<rect x="${x.toFixed(2)}" y="${yBottom.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(segmentHeight, .7).toFixed(2)}" fill="${color}" class="ae-stack-segment" data-ae-stack-actor="${escapeHtml(item.id)}" data-ae-stack-day="${dateIndex}" data-ae-stack-display="${escapeHtml(compactInteger(value))}"></rect>`;
       }).join("");
       const valueLabel = `<text x="${(x + barWidth / 2).toFixed(2)}" y="${valueLabelY.toFixed(2)}" text-anchor="middle" class="ae-stack-value-label" data-ae-stack-value-label="${dateIndex}" aria-hidden="true"></text>`;
-      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", date, label: userMetricLabels[userMetric], total: dayTotal, items: tooltipItems, contributorCount }));
+      const tooltipData = escapeHtml(JSON.stringify({ kind: "integer", monthly: Boolean(data.yearly), unavailable: Boolean(data.yearly && !months[date.slice(0, 7)]?.actorBreakdown), date, label: userMetricLabels[userMetric], total: dayTotal, items: tooltipItems, contributorCount }));
       const hitArea = `<rect x="${(dateIndex * slot).toFixed(2)}" y="${plotTop}" width="${slot.toFixed(2)}" height="${plotHeight}" class="ae-bar-hit" data-ae-bar-tooltip="${tooltipData}"></rect>`;
-      const showLabel = dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
-      const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(date.slice(8))}</text>` : "";
+      const showLabel = data.yearly || dateIndex === 0 || dateIndex === dates.length - 1 || dateIndex % Math.max(1, Math.ceil(dates.length / 7)) === 0;
+      const label = showLabel ? `<text x="${(x + barWidth / 2).toFixed(2)}" y="244" text-anchor="middle" class="ae-stack-date">${escapeHtml(data.yearly ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short" }) : date.slice(8))}</text>` : "";
       return `${segments}${valueLabel}${hitArea}${label}`;
     }).join("");
     const legend = chartLegendMarkup(series, "users");
     return {
-      html: `<div class="ae-daily-chart-wrap"><svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily ${escapeHtml(userMetricLabels[userMetric])} by Actor">${guides}${bars}</svg><div class="ae-stack-axis-title">Day of month</div><div class="ae-actor-legend">${legend}</div></div>`,
+      html: `<div class="ae-daily-chart-wrap"><svg class="ae-stacked-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${data.yearly ? "Monthly" : "Daily"} ${escapeHtml(userMetricLabels[userMetric])} by Actor">${guides}${bars}</svg><div class="ae-stack-axis-title">${data.yearly ? "Month of year" : "Day of month"}</div><div class="ae-actor-legend">${legend}</div></div>`,
       series,
       dates,
       totalsByDate,
@@ -1074,26 +1202,26 @@
 
   function dailyUsersMarkup(data) {
     const chart = stackedUserChart(data);
-    const status = userLoadStatus[data?.month];
+    const status = data?.yearly ? null : userLoadStatus[data?.month];
     const captured = Object.keys(data?.actorUserDaily || {}).length;
     const totalActors = status?.total || data?.actorBreakdown?.actors?.length || 0;
     const progress = totalActors ? Math.min(100, (captured / totalActors) * 100) : 0;
     const selectedUserSeries = Object.entries(data?.actorUserDaily || {})
       .filter(([id]) => actorSelected(id))
-      .map(([id, daily]) => [id, daily.filter((day) => dateIsVisibleForMonth(day.date, data?.month))]);
+      .map(([id, daily]) => [id, data.yearly ? daily : daily.filter((day) => dateIsVisibleForMonth(day.date, data?.month))]);
     const payingTotal = selectedUserSeries.reduce((sum, [, daily]) => sum + daily.reduce((inner, day) => inner + day.payingUsers, 0), 0);
     const freeTotal = selectedUserSeries.reduce((sum, [, daily]) => sum + daily.reduce((inner, day) => inner + day.freeUsers, 0), 0);
     const payingShare = payingTotal + freeTotal ? payingTotal / (payingTotal + freeTotal) : 0;
     const userOccurrenceTotal = payingTotal + freeTotal;
     const unsupported = status?.status === "unsupported";
-    const coverage = chart?.dates?.at(-1)
+    const coverage = !data.yearly && chart?.dates?.at(-1)
       ? ` · through ${new Date(`${chart.dates.at(-1)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
       : "";
 
     return `<div class="ae-daily-users">
       <section class="ae-daily-stack-card">
         <div class="ae-card-heading ae-section-heading ae-run-heading">
-          <div><span>Daily user activity by Actor</span><small>Actor-user occurrences${escapeHtml(coverage)} · the same person may appear under multiple Actors</small></div>
+          <div><span>${data.yearly ? "Monthly" : "Daily"} user activity by Actor</span><small>${data.yearly ? "Monthly Actor-user counts; totals sum months. The same person may appear in multiple months and Actors." : `Actor-user occurrences${escapeHtml(coverage)} · the same person may appear under multiple Actors`}</small></div>
           <div class="ae-user-metric-toggle">
             ${Object.entries(userMetricLabels).map(([key, label]) => `<button type="button" data-ae-user-metric="${key}" class="${userMetric === key ? "ae-active" : ""}">${escapeHtml(label)}</button>`).join("")}
           </div>
@@ -1226,7 +1354,16 @@
   function actorMarketingMarkup(data) {
     const actors = selectedActors(data);
     const marketingByActor = data?.actorMarketing || {};
-    const status = marketingLoadStatus[data?.month];
+    const keys = data?.yearly ? yearMonthKeys(data.month.slice(0, 4)) : [data?.month];
+    const expected = keys.flatMap((key) => (months[key]?.actorBreakdown?.actors || [])
+      .filter((actor) => actorSelected(actor.id)).map((actor) => months[key]?.actorMarketing?.[actor.id]));
+    const monthlyStatuses = keys.map((key) => marketingLoadStatus[key]);
+    const status = data?.yearly ? {
+      status: monthlyStatuses.some((item) => item?.status === "loading") ? "loading"
+        : monthlyStatuses.some((item) => item?.status === "waiting-request") ? "waiting-request" : "complete",
+      completed: expected.filter(Boolean).length, total: expected.length,
+      failed: expected.filter((item) => item && !item.available).length,
+    } : marketingLoadStatus[data?.month];
     if (!actors.length) {
       return `<div class="ae-empty ae-empty-actors"><div class="ae-empty-icon">◎</div><h2>No Actors selected</h2><p>Choose one or more Actors to inspect acquisition performance.</p></div>`;
     }
@@ -1298,9 +1435,10 @@
     }).join("");
 
     return `<div class="ae-acquisition-dashboard">
+      ${data.yearly ? `<div class="ae-chart-note">${expected.filter((item) => item?.available).length} of ${expected.length} Actor-months available. Counts sum monthly unique counts across Actors; the same visitor may appear in multiple months and Actors. Source and country shares are estimates weighted by monthly page views.</div>` : ""}
       <div class="ae-quality-summary ae-acquisition-summary ae-stat-ledger ae-stat-ledger-4">
-        <article><span>Store page views</span><strong>${integer(totals.webPageViews)}</strong><small>Actor-level unique totals</small></article>
-        <article><span>Console page views</span><strong>${integer(totals.consolePageViews)}</strong><small>Actor-level unique totals</small></article>
+        <article><span>Store page views</span><strong>${integer(totals.webPageViews)}</strong><small>${data.yearly ? "Sum of monthly Actor counts" : "Actor-level unique totals"}</small></article>
+        <article><span>Console page views</span><strong>${integer(totals.consolePageViews)}</strong><small>${data.yearly ? "Sum of monthly Actor counts" : "Actor-level unique totals"}</small></article>
         <article><span>Viewing users</span><strong>${integer(totals.viewingUsers)}</strong><small>Across ${available.length} Actors</small></article>
         <article><span>Users with a run</span><strong>${integer(totals.usersWithRun)}</strong><small>${totals.viewingUsers ? `${percent(runViewSignal)} run-to-view ratio` : "No viewing-user baseline"}</small></article>
       </div>
@@ -1310,14 +1448,14 @@
       </div>
       <section class="ae-acquisition-list-card">
         <div class="ae-card-heading ae-quality-heading">
-          <div><span>Acquisition by Actor</span><small>Actor-level unique counts · the same person may appear under multiple Actors</small></div>
+          <div><span>Acquisition by Actor</span><small>${data.yearly ? "Summed monthly counts · visitors may repeat across months and Actors" : "Actor-level unique counts · the same person may appear under multiple Actors"}</small></div>
           <button type="button" data-ae-marketing-refresh>${status?.status === "loading" ? `Loading ${status.completed}/${status.total}` : tracked.length ? "Refresh acquisition" : "Load acquisition"}</button>
         </div>
         <div class="ae-acquisition-list-head"><span>Actor</span><span>Store</span><span>Console</span><span>Viewing</span><span>Ran</span><span>Signal</span><span></span></div>
         <div class="ae-acquisition-list">${rows}</div>
         ${status?.status === "waiting-request" ? `<div class="ae-quality-notice">${escapeHtml(status.message || "Waiting for authenticated Apify data.")}</div>` : ""}
-        ${status?.status === "complete" && status.failed ? `<div class="ae-quality-notice">${integer(status.failed)} Actor request${status.failed === 1 ? "" : "s"} could not be loaded. Use refresh to retry.</div>` : ""}
-        ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Processed ${status.completed} of ${status.total} Actors</span></div>` : ""}
+        ${status?.status === "complete" && status.failed ? `<div class="ae-quality-notice">${integer(status.failed)} ${data.yearly ? "Actor-month" : "Actor"} request${status.failed === 1 ? "" : "s"} could not be loaded. Use refresh to retry.</div>` : ""}
+        ${status?.status === "loading" ? `<div class="ae-load-progress"><i style="width:${progress.toFixed(1)}%"></i><span>Processed ${status.completed} of ${status.total} ${data.yearly ? "Actor-months" : "Actors"}</span></div>` : ""}
       </section>
       <p class="ae-acquisition-footnote">Run-to-view ratio compares two separately deduplicated groups and can exceed 100%; use it as a directional indicator, not a conversion rate.</p>
     </div>`;
@@ -1338,15 +1476,22 @@
       return `<div class="ae-empty ae-empty-actors"><div class="ae-empty-icon">◌</div><h2>No Actors selected</h2><p>Choose one or more Actors from the filter above to populate this view.</p></div>`;
     }
     const maxProfit = Math.max(...actors.map((actor) => actor.profitUsd), 1);
-    const comparisonMonth = offsetMonth(data.month, -1);
-    const comparisonBreakdown = months[comparisonMonth]?.actorBreakdown;
+    const yearly = Boolean(data.yearly);
+    const comparisonYear = String(Number(data.month.slice(0, 4)) - 1);
+    const comparisonMonth = yearly ? `${comparisonYear}-12` : offsetMonth(data.month, -1);
+    const comparisonKeys = yearly ? yearMonthKeys(comparisonYear) : [comparisonMonth];
+    const comparisonBreakdown = yearly ? yearlyData(comparisonYear).actorBreakdown : months[comparisonMonth]?.actorBreakdown;
     const comparisonActors = new Map((comparisonBreakdown?.actors || []).map((actor) => [actor.id, actor]));
-    const comparisonState = monthLoadStatus[comparisonMonth];
-    const comparisonReady = Array.isArray(comparisonBreakdown?.actors);
-    const comparisonLabel = new Date(`${comparisonMonth}-02T12:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const comparisonState = yearly
+      ? comparisonKeys.map((key) => monthLoadStatus[key]).find((state) => state?.status === "error")
+      : monthLoadStatus[comparisonMonth];
+    const comparisonReady = yearly
+      ? [...comparisonKeys, ...yearMonthKeys(data.month.slice(0, 4))].every((key) => Array.isArray(months[key]?.actorBreakdown?.actors))
+      : Array.isArray(comparisonBreakdown?.actors);
+    const comparisonLabel = yearly ? `${comparisonYear} (full year)` : new Date(`${comparisonMonth}-02T12:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" });
     const [year, monthNumber] = data.month.split("-").map(Number);
     const daysInMonth = new Date(year, monthNumber, 0).getDate();
-    const isCurrentMonth = data.month === localDateKey().slice(0, 7);
+    const isCurrentMonth = !yearly && data.month === localDateKey().slice(0, 7);
     const reportedDays = (data.daily || [])
       .filter((day) => dateIsVisibleForMonth(day.date, data.month))
       .map((day) => number(day.date.slice(8)));
@@ -1435,8 +1580,8 @@
           : `<strong class="${movement >= 0 ? "ae-up" : "ae-down"}">${movement >= 0 ? "↑" : "↓"} ${Math.abs(movement * 100).toFixed(1)}%</strong>`}</div>`;
       };
       let actorTrend;
-      if (comparisonActor) {
-        actorTrend = `<div class="ae-actor-trend" title="${escapeHtml(`${isCurrentMonth ? "Projected " : ""}${data.month} performance compared with ${comparisonLabel}`)}">
+      if (comparisonReady && comparisonActor) {
+        actorTrend = `<div class="ae-actor-trend" title="${escapeHtml(`${isCurrentMonth ? "Projected " : ""}${yearly ? data.month.slice(0, 4) : data.month} performance compared with ${comparisonLabel}`)}">
           ${trendMetric("Revenue", actor.revenueUsd, comparisonActor.revenueUsd)}
           ${trendMetric("Profit", actor.profitUsd, comparisonActor.profitUsd)}
         </div>`;
@@ -1461,7 +1606,7 @@
           <span>${money(actor.revenueUsd)} revenue · ${money(actor.costUsd)} cost</span>
         </div>
         ${actorTrend}
-        <div class="ae-actor-stat"><strong>${integer(actor.payingUsers)}</strong><span>paying users</span></div>
+        <div class="ae-actor-stat"><strong>${integer(actor.payingUsers)}</strong><span>${yearly ? "monthly paying-user counts" : "paying users"}</span></div>
         <div class="ae-actor-stat"><strong>${percent(actor.successRate)}</strong><span>${integer(actor.totalRuns)} runs</span></div>
         <div class="ae-actor-stat"><strong>${integer(actor.results)}</strong><span>results</span></div>
         <div class="ae-actor-pricing">${escapeHtml(pricing)}</div>
@@ -1469,23 +1614,24 @@
     }).join("");
 
     return `<div class="ae-actors-view">
+      ${yearly ? `<div class="ae-chart-note">Totals cover loaded months of ${escapeHtml(data.month.slice(0, 4))}. Paying-user counts sum months and Actors; the same person can appear more than once. ${data.month.slice(0, 4) === localDateKey().slice(0, 4) ? "Year-to-date totals include a partial current month; comparisons use the full previous year without projection." : "Comparisons use actual totals for the previous year."}</div>` : ""}
       <div class="ae-actor-summary ae-stat-ledger ae-stat-ledger-4">
-        <article><span>Net profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange === null ? "ae-muted" : profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? comparisonState?.status === "error" ? "Comparison unavailable" : "Loading comparison…" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% ${isCurrentMonth ? "projected " : ""}vs previous`}</small></article>
+        <article><span>Net profit</span><strong>${money(totals.profit)}</strong><small class="${profitChange === null ? "ae-muted" : profitChange >= 0 ? "ae-up" : "ae-down"}">${profitChange === null ? comparisonReady ? "No profit baseline" : comparisonState?.status === "error" ? "Comparison unavailable" : "Loading comparison…" : `${profitChange >= 0 ? "↑" : "↓"} ${Math.abs(profitChange * 100).toFixed(1)}% ${isCurrentMonth ? "projected " : ""}vs ${yearly ? comparisonYear : "previous"}`}</small></article>
         <article><span>Revenue</span><strong>${money(totals.revenue)}</strong><small>${actors.length} Actors</small></article>
-        <article><span>Paying users</span><strong>${integer(totals.users)}</strong><small>Sum across actors</small></article>
-        <article><span>Total runs</span><strong>${integer(totals.runs)}</strong><small>For captured month</small></article>
+        <article><span>Paying users</span><strong>${integer(totals.users)}</strong><small>${yearly ? "Sum across months and Actors" : "Sum across actors"}</small></article>
+        <article><span>Total runs</span><strong>${integer(totals.runs)}</strong><small>For captured ${yearly ? "year" : "month"}</small></article>
       </div>
       <section class="ae-portfolio-card">
         <div class="ae-card-heading ae-section-heading">
-          <div><span>Revenue, profit, and cost by Actor</span><small>Top Actors for the selected month</small></div>
+          <div><span>Revenue, profit, and cost by Actor</span><small>Top Actors for the selected ${yearly ? "year" : "month"}</small></div>
           <div class="ae-legend"><i class="ae-green"></i>Net profit <i class="ae-orange"></i>Cost</div>
         </div>
-        <div class="ae-portfolio-list">${portfolioBars || '<div class="ae-inline-empty">No revenue reported for this month.</div>'}</div>
+        <div class="ae-portfolio-list">${portfolioBars || `<div class="ae-inline-empty">No revenue reported for this ${yearly ? "year" : "month"}.</div>`}</div>
         <div class="ae-chart-note">Each full bar is an Actor’s revenue. Profit and cost are stacked inside it, so profit + cost = revenue.</div>
       </section>
       <section class="ae-health-card">
         <div class="ae-card-heading ae-section-heading">
-          <div><span>Run reliability by Actor</span><small>Monthly totals · ranked by ${healthLabels[healthMetric]}</small></div>
+          <div><span>Run reliability by Actor</span><small>${yearly ? "Yearly" : "Monthly"} totals · ranked by ${healthLabels[healthMetric]}</small></div>
           <span class="ae-problem-count">${integer(unhealthyActors.reduce((sum, actor) => sum + actor[healthMetric], 0))} ${healthLabels[healthMetric]}</span>
         </div>
         <div class="ae-health-filters">
@@ -1502,8 +1648,8 @@
         <div class="ae-card-heading ae-actor-heading">
           <div><span>Actor performance table</span><small>Ranked by net profit</small></div>
           <div class="ae-actor-heading-meta">
-            <small>${comparisonReady ? `${isCurrentMonth ? "Projected trends" : "Trends"} vs ${escapeHtml(comparisonLabel)}` : comparisonState?.status === "error" ? `Previous-month trends unavailable` : `Loading ${escapeHtml(comparisonLabel)} trends…`}</small>
-            ${!comparisonReady && comparisonState?.status === "error" ? `<button type="button" data-ae-load-comparison="${escapeHtml(comparisonMonth)}">Retry</button>` : ""}
+            <small>${comparisonReady ? `${isCurrentMonth ? "Projected trends" : "Trends"} vs ${escapeHtml(comparisonLabel)}` : comparisonState?.status === "error" ? `Previous-${yearly ? "year" : "month"} trends unavailable` : `Loading ${escapeHtml(comparisonLabel)} trends…`}</small>
+            ${!comparisonReady && comparisonState?.status === "error" ? `<button type="button" ${yearly ? `data-ae-load-year-comparison="${comparisonYear}"` : `data-ae-load-comparison="${escapeHtml(comparisonMonth)}"`}>Retry</button>` : ""}
           </div>
         </div>
         <div class="ae-actor-list">${rows}</div>
@@ -1747,10 +1893,15 @@
       </div>`;
     }
 
+    if (activeView === "quality") data = qualityData();
+    else if (timeframe === "year") data = yearlyData(yearlySelection || data.month.slice(0, 4));
     const overviewData = overviewForSelection(data);
     const hasOverview = Array.isArray(overviewData.daily) && overviewData.daily.length > 0 && overviewData.total;
-    const monthLabel = new Date(`${data.month}-02T00:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    const controlMonth = pendingMonth || data.month;
+    const periodMonth = activeView === "quality"
+      ? timeframe === "year" ? `${yearlySelection || selectedMonth?.slice(0, 4) || localDateKey().slice(0, 4)}-01` : selectedMonth || localDateKey().slice(0, 7)
+      : data.month;
+    const monthLabel = timeframe === "year" ? periodMonth.slice(0, 4) : new Date(`${periodMonth}-02T00:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const controlMonth = timeframe === "year" ? periodMonth : pendingMonth || periodMonth;
     const [selectedYear, selectedMonthNumber] = controlMonth.split("-");
     const currentYear = new Date().getFullYear();
     const years = [...new Set([
@@ -1770,7 +1921,8 @@
         </div>
         <div class="ae-dashboard-controls">
           <div class="ae-period-picker">
-            <select id="ae-month-number" aria-label="Month">${monthNames.map((name, index) => { const value = String(index + 1).padStart(2, "0"); return `<option value="${value}" ${value === selectedMonthNumber ? "selected" : ""}>${escapeHtml(name)}</option>`; }).join("")}</select>
+            <select id="ae-timeframe" aria-label="Timeframe"><option value="month" ${timeframe === "month" ? "selected" : ""}>Month</option><option value="year" ${timeframe === "year" ? "selected" : ""}>Year</option></select>
+            <select id="ae-month-number" aria-label="Month" ${data.yearly ? "hidden" : ""}>${monthNames.map((name, index) => { const value = String(index + 1).padStart(2, "0"); return `<option value="${value}" ${value === selectedMonthNumber ? "selected" : ""}>${escapeHtml(name)}</option>`; }).join("")}</select>
             <select id="ae-year-number" aria-label="Year">${years.map((year) => `<option value="${year}" ${String(year) === selectedYear ? "selected" : ""}>${year}</option>`).join("")}</select>
             <button id="ae-load-month" type="button">${loadState?.status === "loading" ? "Loading…" : "Load"}</button>
           </div>
@@ -1786,16 +1938,27 @@
           </div>
         </div>
       </div>
-      ${loadState?.status === "error" ? `<div class="ae-month-error">${escapeHtml(loadState.message)}</div>` : ""}
+      ${activeView !== "quality" && loadState?.status === "error" ? `<div class="ae-month-error">${escapeHtml(loadState.message)}</div>` : ""}
       <nav class="ae-tabs" aria-label="Dashboard sections">
-        <button type="button" data-ae-view="overview" class="${activeView === "overview" ? "ae-active" : ""}">Overview</button>
-        <button type="button" data-ae-view="daily" class="${activeView === "daily" ? "ae-active" : ""}">Daily earnings <span>${Object.keys(data.actorDaily || {}).length || ""}</span></button>
+        ${data.yearly ? "" : `
+        <button type="button" data-ae-view="overview" class="${activeView === "overview" ? "ae-active" : ""}">Overview</button>`}
+        <button type="button" data-ae-view="daily" class="${activeView === "daily" ? "ae-active" : ""}">${data.yearly ? "Monthly" : "Daily"} earnings <span>${Object.keys(data.actorDaily || {}).length || ""}</span></button>
         <button type="button" data-ae-view="runs" class="${activeView === "runs" ? "ae-active" : ""}">Run activity <span>${Object.keys(data.actorRunDaily || {}).length || ""}</span></button>
         <button type="button" data-ae-view="users" class="${activeView === "users" ? "ae-active" : ""}">User activity <span>${Object.keys(data.actorUserDaily || {}).length || ""}</span></button>
         <button type="button" data-ae-view="actors" class="${activeView === "actors" ? "ae-active" : ""}">Actor performance <span>${pickedCount || ""}</span></button>
         <button type="button" data-ae-view="quality" class="${activeView === "quality" ? "ae-active" : ""}">Actor quality <span>${actorsForPicker.filter((actor) => actorQuality[actor.id]).length || ""}</span></button>
         <button type="button" data-ae-view="acquisition" class="${activeView === "acquisition" ? "ae-active" : ""}">Traffic &amp; acquisition <span>${Object.keys(data.actorMarketing || {}).length || ""}</span></button>
       </nav>`;
+
+    if (activeView === "quality") return `${shellStart}<div class="ae-chart-note">Current quality signals across known Actors. Quality is independent of the selected month or year.</div>${actorQualityMarkup(data)}</div>`;
+
+    if (data.yearly) {
+      const keys = yearMonthKeys(data.month.slice(0, 4));
+      const loaded = keys.filter((key) => months[key]?.actorBreakdown).length;
+      const loading = keys.filter((key) => monthLoadStatus[key]?.status === "loading").length;
+      const failed = keys.filter((key) => monthLoadStatus[key]?.status === "error");
+      return `${shellStart}<div class="ae-chart-note">${loaded} of ${keys.length} elapsed months available${loading ? ` · Loading ${loading} months…` : ""}. ${data.month.slice(0, 4) === String(currentYear) ? "Current month is partial. Future months have no data." : ""} ${failed.length ? `Unavailable: ${failed.map((key) => `${escapeHtml(key)} (${escapeHtml(monthLoadStatus[key].message)})`).join(", ")}. Click Load to retry.` : ""}</div>${activeView === "runs" ? dailyRunsMarkup(data) : activeView === "users" ? dailyUsersMarkup(data) : activeView === "actors" ? actorBreakdownMarkup(data) : activeView === "acquisition" ? actorMarketingMarkup(data) : dailyMixMarkup(data)}</div>`;
+    }
 
     if (!hasOverview) {
       const overviewEmpty = selectedActorIds?.size === 0
@@ -2046,14 +2209,9 @@
     actorPickerOpen = false;
     const data = selectedMonth ? months[selectedMonth] : null;
     if (view === "quality") {
-      const needsQuality = (data?.actorBreakdown?.actors || []).some((actor) => !actorQuality[actor.id]);
-      if (needsQuality) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
+      if (qualityData().actorBreakdown.actors.some((actor) => !actorQuality[actor.id])) requestQuality();
     }
-    if (view === "acquisition") {
-      const needsMarketing = (data?.actorBreakdown?.actors || []).some((actor) => !data?.actorMarketing?.[actor.id]);
-      if (needsMarketing) window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
-    }
-    if (view === "runs") requestSharedRuns(data);
+    if (view === "runs" && timeframe === "month") requestSharedRuns(data);
     render();
   }
 
@@ -2072,11 +2230,8 @@
   function showBarTooltip(event, payload, tooltip) {
     const total = number(payload.total);
     const valueFormatter = payload.kind === "money" ? money : integer;
-    const dateLabel = new Date(`${payload.date}T00:00:00`).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
+    const dateLabel = new Date(`${payload.date}T00:00:00`).toLocaleDateString("en-US",
+      payload.monthly ? { month: "long", year: "numeric" } : { weekday: "short", month: "short", day: "numeric" });
     const rows = Array.isArray(payload.items) ? payload.items.map((item, index) => {
       const share = total ? number(item.value) / total : 0;
       return `<div class="ae-tooltip-row">
@@ -2089,7 +2244,7 @@
     }).join("") : "";
 
     const contributorCount = number(payload.contributorCount ?? payload.items?.length);
-    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>${escapeHtml(payload.label)}</strong></div><div><span>Total</span><strong>${escapeHtml(valueFormatter(total))}</strong></div></div><div class="ae-tooltip-columns"><span>Actor</span><span>Share</span><span>Value</span></div><div class="ae-tooltip-list">${rows || '<div class="ae-tooltip-empty">No activity</div>'}</div><div class="ae-tooltip-footer">${integer(contributorCount)} contributing Actors · ranked for this day</div>`;
+    tooltip.innerHTML = `<div class="ae-tooltip-header"><div><span>${escapeHtml(dateLabel)}</span><strong>${escapeHtml(payload.label)}</strong></div><div><span>Total</span><strong>${escapeHtml(valueFormatter(total))}</strong></div></div><div class="ae-tooltip-columns"><span>Actor</span><span>Share</span><span>Value</span></div><div class="ae-tooltip-list">${rows || `<div class="ae-tooltip-empty">${payload.unavailable ? "Month data not available" : "No activity"}</div>`}</div><div class="ae-tooltip-footer">${integer(contributorCount)} contributing Actors · ranked for this ${payload.monthly ? "month" : "day"}</div>`;
     tooltip.hidden = false;
     positionBarTooltip(event, tooltip);
   }
@@ -2165,8 +2320,8 @@
       const currentMonth = localDateKey().slice(0, 7);
       selectedMonth = months[currentMonth] ? currentMonth : keys.at(-1) || null;
     }
-    const data = selectedMonth ? months[selectedMonth] : null;
-    if (panelOpen && (activeView === "overview" || activeView === "actors") && data?.month) {
+    const data = activeView === "quality" ? qualityData() : selectedMonth ? (timeframe === "year" ? yearlyData(yearlySelection || selectedMonth.slice(0, 4)) : months[selectedMonth]) : null;
+    if (panelOpen && timeframe === "month" && (activeView === "overview" || activeView === "actors") && data?.month) {
       const comparisonKey = offsetMonth(data.month, -1);
       const comparisonData = months[comparisonKey];
       const comparisonReady = Array.isArray(comparisonData?.daily)
@@ -2178,7 +2333,11 @@
         window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${comparisonKey}-01`, purpose: "comparison" }, window.location.origin);
       }
     }
-    if (panelOpen && activeView === "runs") requestSharedRuns(data);
+    if (panelOpen && activeView === "acquisition") requestMarketing(data);
+    if (panelOpen && timeframe === "year" && activeView === "actors" && data) {
+      requestYearMonths(String(Number(data.month.slice(0, 4)) - 1), { missingOnly: true });
+    }
+    if (panelOpen && timeframe === "month" && activeView === "runs") requestSharedRuns(data);
     const content = root.querySelector("#ae-panel-content");
     const barTooltip = root.querySelector("#ae-bar-tooltip");
     if (barTooltip) barTooltip.hidden = true;
@@ -2190,9 +2349,22 @@
       : Number.isFinite(actorRevenue) ? compactMoney(actorRevenue) : "Earnings";
     ensurePinnedLauncher();
 
+    content.querySelector("#ae-timeframe")?.addEventListener("change", (event) => {
+      timeframe = event.target.value;
+      if (timeframe === "year") {
+        if (!["daily", "runs", "users", "actors", "quality", "acquisition"].includes(activeView)) activeView = "daily";
+        loadYear(content.querySelector("#ae-year-number").value);
+      }
+      render();
+    });
     content.querySelector("#ae-load-month")?.addEventListener("click", () => {
       const monthNumber = content.querySelector("#ae-month-number")?.value;
       const yearNumber = content.querySelector("#ae-year-number")?.value;
+      if (timeframe === "year") {
+        loadYear(yearNumber);
+        render();
+        return;
+      }
       const key = `${yearNumber}-${monthNumber}`;
       if (!/^\d{4}-\d{2}$/.test(key)) return;
       comparisonMonthRequest = null;
@@ -2200,6 +2372,12 @@
       if (months[key]) selectedMonth = key;
       window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_MONTH", month: `${key}-01` }, window.location.origin);
       render();
+    });
+    content.querySelectorAll("[data-ae-load-year-comparison]").forEach((button) => {
+      button.addEventListener("click", () => {
+        requestYearMonths(button.dataset.aeLoadYearComparison);
+        render();
+      });
     });
     content.querySelectorAll("[data-ae-load-comparison]").forEach((button) => {
       button.addEventListener("click", (event) => {
@@ -2240,7 +2418,7 @@
       });
     });
     content.querySelector("[data-ae-quality-refresh]")?.addEventListener("click", () => {
-      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_QUALITY", month: data?.month }, window.location.origin);
+      requestQuality();
     });
     content.querySelectorAll("[data-ae-quality-toggle]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -2251,7 +2429,7 @@
       });
     });
     content.querySelector("[data-ae-marketing-refresh]")?.addEventListener("click", () => {
-      window.postMessage({ source: MESSAGE_SOURCE, type: "REQUEST_ACTOR_MARKETING", month: data?.month }, window.location.origin);
+      requestMarketing(data, { force: true });
     });
     content.querySelectorAll("[data-ae-marketing-toggle]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -2460,7 +2638,7 @@
           const returnTo = comparisonMonthRequest?.returnTo;
           if (returnTo && months[returnTo]) selectedMonth = returnTo;
           comparisonMonthRequest = null;
-        } else if (event.data.status === "complete") {
+        } else if (event.data.status === "complete" && event.data.purpose !== "year") {
           selectedMonth = key;
           pendingMonth = null;
         }

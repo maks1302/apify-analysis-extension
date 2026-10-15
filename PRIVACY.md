@@ -45,6 +45,14 @@ host. The extension does not send analytics, authentication information, or usag
 data to the extension developer or to advertising, telemetry, or third-party
 analytics services.
 
+Selecting a yearly timeframe requests monthly financial totals and Actor
+breakdowns (including run and user counts) for each elapsed month of that year from the same Apify backend.
+Yearly Traffic & acquisition loads monthly marketing analytics for each Actor
+in the selected year. Actor quality uses current Actor signals independent of
+the selected timeframe.
+Yearly Actor performance also loads the previous year for financial comparisons.
+These normalized monthly records use the same local storage described above.
+
 The Help & Contact link opens GitHub only after the user explicitly clicks it.
 GitHub's own privacy terms apply after that external page is opened.
 

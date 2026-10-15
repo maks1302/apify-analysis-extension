@@ -330,9 +330,9 @@
     }
   };
 
-  const loadActorQuality = async (month) => {
+  const loadActorQuality = async (month, actorIds) => {
     const key = monthKey(month);
-    const actors = actorsByMonth.get(key);
+    const actors = Array.isArray(actorIds) ? [...new Set(actorIds.filter((id) => typeof id === "string" && id))].map((id) => ({ id })) : actorsByMonth.get(key);
     const template = profitRequestByMonth.get(key) || latestProfitTemplate;
     if (!key || qualityLoadingMonths.has(key)) return;
     if (!actors?.length || !template) {
@@ -401,9 +401,9 @@
     qualityLoadingMonths.delete(key);
   };
 
-  const loadActorMarketing = async (month) => {
+  const loadActorMarketing = async (month, actorIds) => {
     const key = monthKey(month);
-    const actors = actorsByMonth.get(key);
+    const actors = Array.isArray(actorIds) ? [...new Set(actorIds.filter((id) => typeof id === "string" && id))].map((id) => ({ id })) : actorsByMonth.get(key);
     const template = profitRequestByMonth.get(key) || latestProfitTemplate;
     if (!key || marketingLoadingMonths.has(key)) return;
     if (!actors?.length || !template) {
@@ -633,7 +633,7 @@
 
   const requestMonth = async (month, purpose = "navigation") => {
     const key = monthKey(month);
-    const background = purpose === "comparison";
+    const background = purpose === "comparison" || purpose === "year";
     if (!/^\d{4}-\d{2}$/.test(key) || manualLoadingMonths.has(key)) return;
     if (!latestProfitTemplate) {
       post({ type: "MONTH_LOAD_STATUS", month: key, status: "error", message: "Reload Apify Monetization first so an authenticated request can be captured.", purpose });
@@ -676,12 +676,12 @@
     if (event.data?.type === "REQUEST_ACTOR_QUALITY") {
       const key = monthKey(event.data.month);
       if (key) qualityRequestedMonths.add(key);
-      void loadActorQuality(key);
+      void loadActorQuality(key, event.data.actorIds);
     }
     if (event.data?.type === "REQUEST_ACTOR_MARKETING") {
       const key = monthKey(event.data.month);
       if (key) marketingRequestedMonths.add(key);
-      void loadActorMarketing(key);
+      void loadActorMarketing(key, event.data.actorIds);
     }
     if (event.data?.type === "REQUEST_SHARED_RUNS") {
       void loadSharedRuns(

@@ -37,10 +37,17 @@ data or connecting another analytics service.
 - **User activity** — daily paying, free, and total Actor-user occurrences.
 - **Actor performance** — financial and reliability rankings with monthly trends.
 - **Actor quality** — quality scores, ratings, reviews, bookmarks, praises, and
-  recommended improvements.
+  recommended improvements. This section shows current signals across known
+  Actors and is independent of the selected timeframe.
 - **Traffic and acquisition** — page views, run conversion signals, referrers,
   and countries.
-- **Analysis controls** — month/year selection, Actor filtering, consolidated
+- **Yearly analytics** — one bar per month, stacked by Actor, for earnings, run
+  activity, and user activity. Traffic and acquisition aggregates monthly counts
+  and page-view-weighted traffic shares. Actor performance also shows yearly totals,
+  profit rankings, run reliability, and comparisons with the previous year. User totals sum monthly Actor-user counts; the same
+  person can appear in multiple months and Actors. Choose **Year** in the timeframe selector and click **Load**
+  to load another year. The current month is partial; future months remain empty.
+- **Analysis controls** — monthly/yearly timeframes, Actor filtering, consolidated
   chart tooltips, light/dark themes, and fullscreen mode.
 
 ## Privacy and permissions
